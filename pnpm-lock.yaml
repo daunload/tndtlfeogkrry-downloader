@@ -23,6 +23,9 @@ importers:
       electron-dl:
         specifier: ^4.0.0
         version: 4.0.0
+      electron-log:
+        specifier: ^5.4.3
+        version: 5.4.3
       electron-updater:
         specifier: ^6.3.9
         version: 6.8.3
@@ -1445,6 +1448,10 @@ packages:
   electron-dl@4.0.0:
     resolution: {integrity: sha512-USiB9816d2JzKv0LiSbreRfTg5lDk3lWh0vlx/gugCO92ZIJkHVH0UM18EHvKeadErP6Xn4yiTphWzYfbA2Ong==}
     engines: {node: '>=18'}
+
+  electron-log@5.4.3:
+    resolution: {integrity: sha512-sOUsM3LjZdugatazSQ/XTyNcw8dfvH1SYhXWiJyfYodAAKOZdHs0txPiLDXFzOZbhXgAgshQkshH2ccq0feyLQ==}
+    engines: {node: '>= 14'}
 
   electron-publish@26.8.1:
     resolution: {integrity: sha512-q+jrSTIh/Cv4eGZa7oVR+grEJo/FoLMYBAnSL5GCtqwUpr1T+VgKB/dn1pnzxIxqD8S/jP1yilT9VrwCqINR4w==}
@@ -4184,6 +4191,8 @@ snapshots:
       ext-name: 5.0.0
       pupa: 3.3.0
       unused-filename: 4.0.1
+
+  electron-log@5.4.3: {}
 
   electron-publish@26.8.1:
     dependencies:

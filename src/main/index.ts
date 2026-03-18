@@ -9,6 +9,13 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { XMLParser } from 'fast-xml-parser';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { autoUpdater } from 'electron-updater';
+import log from 'electron-log';
+
+// 자동 업데이트 로깅 설정
+autoUpdater.logger = log;
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 
 // asar 패키징 시 경로 보정
 const ffmpegPath = ffmpegInstaller.path.replace('app.asar', 'app.asar.unpacked');
@@ -1054,6 +1061,11 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+
+  // 자동 업데이트 체크 (프로덕션에서만)
+  if (!is.dev) {
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

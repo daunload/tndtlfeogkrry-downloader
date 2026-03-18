@@ -36,28 +36,16 @@ jobs:
           echo "enable-pre-post-scripts=true" >> .npmrc
           pnpm install
 
-      - name: Build Electron app (macOS)
+      - name: Build and Publish (macOS)
         if: matrix.os == 'macos-latest'
-        run: pnpm build:mac
+        run: pnpm build && electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         timeout-minutes: 10
 
-      - name: Build Electron app (Windows)
+      - name: Build and Publish (Windows)
         if: matrix.os == 'windows-latest'
-        run: pnpm build:win
+        run: pnpm build && electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         timeout-minutes: 10
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: |
-            dist/*.dmg
-            dist/*.exe
-            dist/*-setup.exe
-          body: '🚀 새로운 버전 빌드'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
