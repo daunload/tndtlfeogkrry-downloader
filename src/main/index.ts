@@ -187,14 +187,16 @@ app.whenReady().then(() => {
     win.show();
     win.focus();
 
-    // 로그인 성공 시 대시보드로 이동하면 자동으로 숨김
+    // 로그인 성공 시 login_success=1 감지하면 자동으로 숨김
     return new Promise<{ success: boolean }>((resolve) => {
+      let resolved = false;
+
       const onNavigate = (_event: Electron.Event, url: string): void => {
-        if (
-          url.includes('/dashboard') ||
-          (url.includes('canvas.ssu.ac.kr') && !url.includes('/login') && !url.includes('sso'))
-        ) {
+        if (resolved) return;
+        if (url.includes('canvas.ssu.ac.kr/?login_success=1')) {
+          resolved = true;
           win.webContents.removeListener('did-navigate', onNavigate);
+          win.removeListener('hide', onHide);
           win.hide();
           resolve({ success: true });
         }
@@ -203,6 +205,8 @@ app.whenReady().then(() => {
 
       // 유저가 창을 닫으면(숨기면) 수동 확인
       const onHide = (): void => {
+        if (resolved) return;
+        resolved = true;
         win.removeListener('hide', onHide);
         win.webContents.removeListener('did-navigate', onNavigate);
         // 현재 URL로 로그인 여부 판단
