@@ -53,7 +53,7 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
 </script>
 
 <template>
-  <div class="group flex items-stretch gap-5 p-4 pr-6 border border-border/60 rounded-[24px] bg-surface transition-all duration-300 hover:border-primary/40 hover:shadow-md hover:shadow-primary/5 relative overflow-hidden">
+  <div class="group flex flex-col sm:flex-row items-stretch gap-4 sm:gap-5 p-4 sm:pr-6 border border-border/60 rounded-[20px] sm:rounded-[24px] bg-surface transition-all duration-300 hover:border-primary/40 hover:shadow-md hover:shadow-primary/5 relative overflow-hidden">
     <!-- Background Progress Bar -->
     <div 
       v-if="isDownloading" 
@@ -62,88 +62,92 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
     ></div>
 
     <!-- Thumbnail -->
-    <div class="relative z-10 w-40 h-24 rounded-2xl overflow-hidden bg-surface-mute flex-shrink-0 shadow-sm border border-border/50">
+    <div class="relative z-10 w-full sm:w-40 h-36 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden bg-surface-mute flex-shrink-0 shadow-sm border border-border/50">
       <img
         v-if="video.thumbnailUrl"
         :src="video.thumbnailUrl"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         alt="thumbnail"
       />
-      <div v-else class="w-full h-full flex items-center justify-center text-text-3 text-xs font-bold tracking-wider opacity-50 uppercase">
+      <div v-else class="w-full h-full flex items-center justify-center text-text-3 text-[10px] font-bold tracking-wider opacity-50 uppercase">
         No Preview
       </div>
     </div>
 
     <!-- Info -->
-    <div class="relative z-10 flex-1 min-w-0 flex flex-col justify-center py-1">
-      <div class="text-[17px] font-black text-text-1 truncate mb-2 group-hover:text-primary transition-colors tracking-tight">
+    <div class="relative z-10 flex-1 min-w-0 flex flex-col justify-center py-0 sm:py-1">
+      <div class="text-base sm:text-[17px] font-black text-text-1 truncate mb-2 group-hover:text-primary transition-colors tracking-tight">
         {{ video.title }}
       </div>
-      <div class="flex flex-wrap items-center gap-4 text-xs text-text-3 font-semibold">
-        <span class="flex items-center gap-1.5 bg-surface-mute px-2 py-1 rounded-lg text-text-2">
-          <Calendar :size="13" class="text-primary" />
+      <div class="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-text-3 font-semibold">
+        <span class="flex items-center gap-1.5 bg-surface-mute px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-text-2">
+          <Calendar :size="12" class="text-primary" />
           {{ video.weekPosition }}주차
         </span>
         <span class="flex items-center gap-1.5">
-          <Clock :size="13" class="opacity-70" />
+          <Clock :size="12" class="opacity-70" />
           {{ formatDuration(video.duration) }}
         </span>
         <span class="flex items-center gap-1.5">
-          <HardDrive :size="13" class="opacity-70" />
+          <HardDrive :size="12" class="opacity-70" />
           {{ formatSize(video.fileSize) }}
         </span>
       </div>
     </div>
 
     <!-- Actions -->
-    <div class="relative z-10 flex items-center gap-2 pl-4 border-l border-border/50 ml-2">
-      <div v-if="isComplete" class="flex flex-col items-center justify-center gap-1.5 px-3 min-w-[80px]">
-        <CheckCircle2 :size="28" class="text-success drop-shadow-sm" />
-        <span class="text-[11px] font-black uppercase tracking-widest text-success">Done</span>
+    <div class="relative z-10 flex items-center justify-end sm:justify-center gap-3 sm:gap-2 pl-0 sm:pl-4 border-t sm:border-t-0 sm:border-l border-border/50 mt-3 sm:mt-0 pt-3 sm:pt-0 sm:ml-2">
+      <div v-if="isComplete" class="flex flex-row sm:flex-col items-center justify-center gap-1.5 px-2 sm:px-3 min-w-0 sm:min-w-[80px]">
+        <CheckCircle2 :size="24" sm:size="28" class="text-success drop-shadow-sm" />
+        <span class="hidden sm:block text-[11px] font-black uppercase tracking-widest text-success">Done</span>
         <span v-if="status?.status === 'split-done'" class="text-[10px] font-semibold text-text-3">{{ status.splitTotal }}개 분할</span>
       </div>
 
-      <div v-else-if="isDownloading" class="flex flex-col items-center justify-center gap-1 px-3 min-w-[80px]">
-        <div class="relative flex items-center justify-center w-12 h-12">
+      <div v-else-if="isDownloading" class="flex flex-col items-center justify-center gap-1 px-2 sm:px-3 min-w-0 sm:min-w-[80px]">
+        <div class="relative flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12">
           <svg class="w-full h-full transform -rotate-90">
-            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="none" class="text-surface-mute" />
-            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="none" class="text-primary transition-all duration-300 shadow-sm" :stroke-dasharray="2 * Math.PI * 20" :stroke-dashoffset="2 * Math.PI * 20 * (1 - (progress || 0) / 100)" stroke-linecap="round" />
+            <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="3" fill="none" class="text-surface-mute sm:hidden" />
+            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="none" class="text-surface-mute hidden sm:block" />
+            <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="3" fill="none" class="text-primary transition-all duration-300 sm:hidden" :stroke-dasharray="2 * Math.PI * 16" :stroke-dashoffset="2 * Math.PI * 16 * (1 - (progress || 0) / 100)" stroke-linecap="round" />
+            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="none" class="text-primary transition-all duration-300 shadow-sm hidden sm:block" :stroke-dasharray="2 * Math.PI * 20" :stroke-dashoffset="2 * Math.PI * 20 * (1 - (progress || 0) / 100)" stroke-linecap="round" />
           </svg>
-          <span class="absolute text-[11px] font-black text-text-1 tracking-tighter">{{ Math.round(progress || 0) }}%</span>
+          <span class="absolute text-[10px] sm:text-[11px] font-black text-text-1 tracking-tighter">{{ Math.round(progress || 0) }}%</span>
         </div>
-        <span v-if="statusLabel" class="text-[10px] font-semibold text-text-3 text-center whitespace-nowrap">{{ statusLabel }}</span>
+        <span v-if="statusLabel" class="hidden sm:block text-[10px] font-semibold text-text-3 text-center whitespace-nowrap">{{ statusLabel }}</span>
       </div>
 
       <button
         v-else
-        class="w-12 h-12 flex items-center justify-center rounded-2xl bg-surface-mute text-text-2 hover:bg-primary hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5"
+        class="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl sm:rounded-2xl bg-surface-mute text-text-2 hover:bg-primary hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg"
         @click="emit('download', video)"
         title="다운로드"
       >
-        <Download :size="20" />
+        <Download :size="18" sm:size="20" />
       </button>
 
       <!-- 텍스트 변환 버튼 -->
       <template v-if="isComplete && hasApiKey">
-        <div v-if="isTranscribeDone" class="flex flex-col items-center justify-center gap-1 px-3 min-w-[60px]">
-          <FileText :size="24" class="text-purple-500" />
-          <span class="text-[10px] font-bold text-purple-500 whitespace-nowrap">변환됨</span>
+        <div v-if="isTranscribeDone" class="flex flex-row sm:flex-col items-center justify-center gap-1 px-2 sm:px-3 min-w-0 sm:min-w-[60px]">
+          <FileText :size="20" sm:size="24" class="text-purple-500" />
+          <span class="hidden sm:block text-[10px] font-bold text-purple-500 whitespace-nowrap">변환됨</span>
         </div>
 
-        <div v-else-if="isTranscribing" class="flex flex-col items-center justify-center gap-1 px-3 min-w-[60px]">
-          <div class="relative flex items-center justify-center w-10 h-10">
+        <div v-else-if="isTranscribing" class="flex flex-col items-center justify-center gap-1 px-2 sm:px-3 min-w-0 sm:min-w-[60px]">
+          <div class="relative flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10">
             <svg class="w-full h-full transform -rotate-90">
-              <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="3" fill="none" class="text-surface-mute" />
-              <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="3" fill="none" class="text-purple-500 transition-all duration-300" :stroke-dasharray="2 * Math.PI * 16" :stroke-dashoffset="2 * Math.PI * 16 * (1 - (transcribeProgress || 0) / 100)" stroke-linecap="round" />
+              <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="2" fill="none" class="text-surface-mute sm:hidden" />
+              <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="3" fill="none" class="text-surface-mute hidden sm:block" />
+              <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="2" fill="none" class="text-purple-500 transition-all duration-300 sm:hidden" :stroke-dasharray="2 * Math.PI * 13" :stroke-dashoffset="2 * Math.PI * 13 * (1 - (transcribeProgress || 0) / 100)" stroke-linecap="round" />
+              <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="3" fill="none" class="text-purple-500 transition-all duration-300 hidden sm:block" :stroke-dasharray="2 * Math.PI * 16" :stroke-dashoffset="2 * Math.PI * 16 * (1 - (transcribeProgress || 0) / 100)" stroke-linecap="round" />
             </svg>
-            <Loader2 :size="14" class="absolute text-purple-500 animate-spin" />
+            <Loader2 :size="12" sm:size="14" class="absolute text-purple-500 animate-spin" />
           </div>
-          <span v-if="transcribeLabel" class="text-[9px] font-semibold text-text-3 text-center whitespace-nowrap">{{ transcribeLabel }}</span>
+          <span v-if="transcribeLabel" class="hidden sm:block text-[9px] font-semibold text-text-3 text-center whitespace-nowrap">{{ transcribeLabel }}</span>
         </div>
 
         <button
           v-else
-          class="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-500/10 text-purple-500 hover:bg-purple-500 hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg hover:shadow-purple-500/20 hover:-translate-y-0.5"
+          class="w-10 h-10 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-purple-500/10 text-purple-500 hover:bg-purple-500 hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg"
           @click="emit('transcribe', video)"
           title="텍스트 변환"
         >

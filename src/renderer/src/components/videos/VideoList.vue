@@ -34,32 +34,34 @@ const emit = defineEmits<{
 <template>
   <div class="h-full flex flex-col">
     <!-- Header -->
-    <div class="flex items-center gap-5 mb-10">
-      <button
-        class="p-3 -ml-3 rounded-2xl border-none cursor-pointer bg-transparent text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-        @click="emit('back')"
-        title="목록으로 돌아가기"
-      >
-        <ArrowLeft :size="28" />
-      </button>
-      
-      <div class="flex-1">
-        <h2 class="text-3xl font-black text-text-1 tracking-tight">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 sm:mb-10 gap-6 sm:gap-5">
+      <div class="flex items-center gap-3 sm:gap-5 -ml-2 sm:-ml-3">
+        <button
+          class="p-2 sm:p-3 rounded-2xl border-none cursor-pointer bg-transparent text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all"
+          @click="emit('back')"
+          title="목록으로 돌아가기"
+        >
+          <ArrowLeft :size="24" sm:size="28" />
+        </button>
+
+        <h2 class="text-2xl sm:text-3xl font-black text-text-1 tracking-tight">
           강의 영상 리스트
         </h2>
       </div>
 
-      <div class="flex items-center gap-3">
-        <FormatToggle v-model="downloadFormat" />
+      <div class="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+        <div class="flex-1 sm:flex-none">
+          <FormatToggle v-model="downloadFormat" class="w-full sm:w-auto" />
+        </div>
         <button
           v-if="videos.length > 0"
-          class="flex items-center gap-2.5 px-6 py-3 rounded-2xl border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          class="flex-[1.5] sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:-translate-y-0.5"
           :disabled="isDownloadingAll || isLoading"
           @click="emit('downloadAll')"
         >
           <Loader2 v-if="isDownloadingAll" :size="18" class="animate-spin" />
           <Download v-else :size="18" />
-          {{ isDownloadingAll ? '다운로드 중...' : '전체 다운로드' }}
+          <span class="whitespace-nowrap">{{ isDownloadingAll ? '중...' : '전체 다운로드' }}</span>
         </button>
         <button
           v-if="videos.length > 0 && hasApiKey"

@@ -86,7 +86,7 @@ async function handleDeleteApiKey(): Promise<void> {
     <Sidebar :is-logged-in="isLoggedIn" :has-api-key="hasApiKey" @login="login" @open-settings="showSettings = true" />
 
     <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-      <div class="flex-1 overflow-y-auto px-10 py-10 w-full max-w-5xl mx-auto">
+      <div class="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 py-6 sm:py-10 w-full max-w-6xl mx-auto">
         <Transition name="fade" mode="out-in">
           <LoginScreen v-if="!isLoggedIn" @login="login" />
 

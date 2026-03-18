@@ -17,31 +17,31 @@ const emit = defineEmits<{
 
 <template>
   <div class="h-full flex flex-col">
-    <div class="flex justify-between items-end mb-10">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 sm:mb-10 gap-6 sm:gap-4">
       <div>
-        <h2 class="text-3xl font-black text-text-1 flex items-center gap-3 tracking-tight">
-          <BookOpen class="text-primary" :size="32" />
+        <h2 class="text-2xl sm:text-3xl font-black text-text-1 flex items-center gap-3 tracking-tight">
+          <BookOpen class="text-primary" :size="28" />
           내 강의 목록
         </h2>
-        <p class="text-[15px] text-text-3 mt-2 font-medium">다운로드할 과목을 선택하여 강의 영상을 확인하세요.</p>
+        <p class="text-sm sm:text-[15px] text-text-3 mt-1 sm:mt-2 font-medium">다운로드할 과목을 선택하여 강의 영상을 확인하세요.</p>
       </div>
 
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
         <button
-          class="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-surface text-sm font-semibold text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all shadow-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl border border-border bg-surface text-sm font-semibold text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all shadow-sm"
           @click="emit('relogin')"
         >
           <LogIn :size="18" />
-          재로그인
+          <span class="whitespace-nowrap">재로그인</span>
         </button>
         <button
-          class="flex items-center gap-2 px-6 py-2.5 rounded-xl border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover shadow-md shadow-primary/20 transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          class="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover shadow-md shadow-primary/20 transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed"
           :disabled="isLoading"
           @click="emit('refresh')"
         >
           <Loader2 v-if="isLoading" :size="18" class="animate-spin" />
           <RefreshCw v-else :size="18" />
-          목록 새로고침
+          <span class="whitespace-nowrap">새로고침</span>
         </button>
       </div>
     </div>
