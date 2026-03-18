@@ -71,6 +71,15 @@ interface DownloadApi {
   }>
   openFile: (filePath: string) => Promise<{ success: boolean }>
   selectFolder: () => Promise<{ success: boolean; folderPath?: string }>
+  downloadAndTranscribeAll: (
+    videos: { contentId: string; title: string }[]
+  ) => Promise<{
+    success: boolean
+    error?: string
+    downloadSuccessCount?: number
+    transcribeSuccessCount?: number
+    total?: number
+  }>
   onTranscribeProgress: (
     callback: (data: {
       fileName: string

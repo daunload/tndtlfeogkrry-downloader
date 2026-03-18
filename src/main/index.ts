@@ -902,6 +902,135 @@ app.whenReady().then(() => {
     return { success: true, results, successCount, total };
   });
 
+  // 전체 다운로드 + 텍스트 변환 (한번에)
+  ipcMain.handle(
+    'download-and-transcribe-all',
+    async (event, videos: { contentId: string; title: string }[]) => {
+      const apiKey = loadGeminiApiKey();
+      if (!apiKey) {
+        return { success: false, error: 'Gemini API 키가 설정되지 않았습니다.' };
+      }
+
+      const mainWin = BrowserWindow.fromWebContents(event.sender);
+      if (!mainWin) return { success: false, error: 'No window found' };
+
+      const folderResult = await dialog.showOpenDialog(mainWin, {
+        properties: ['openDirectory', 'createDirectory'],
+        title: '다운로드 및 변환 폴더 선택'
+      });
+
+      if (folderResult.canceled || !folderResult.filePaths[0]) {
+        return { success: false, error: 'cancelled' };
+      }
+
+      const folder = folderResult.filePaths[0];
+      const key = apiKey;
+
+      // 1단계: 전체 MP3 다운로드
+      const downloadResults: { title: string; success: boolean; error?: string }[] = new Array(
+        videos.length
+      );
+
+      let nextDownloadIndex = 0;
+      async function downloadWorker(): Promise<void> {
+        while (nextDownloadIndex < videos.length) {
+          const i = nextDownloadIndex++;
+          const video = videos[i];
+          const safeName = video.title.replace(/[/\\?%*:|"<>]/g, '_');
+          const filePath = resolve(folder, `${safeName}.mp3`);
+          const result = await downloadOne(video.contentId, filePath, event.sender, 'mp3');
+          downloadResults[i] = { title: video.title, success: result.success, error: result.error };
+        }
+      }
+
+      const downloadWorkers = Array.from(
+        { length: Math.min(MAX_CONCURRENT, videos.length) },
+        () => downloadWorker()
+      );
+      await Promise.all(downloadWorkers);
+
+      const downloadSuccessCount = downloadResults.filter((r) => r.success).length;
+      if (downloadSuccessCount === 0) {
+        return { success: false, error: '모든 다운로드가 실패했습니다.' };
+      }
+
+      // 2단계: 다운로드된 MP3 파일 텍스트 변환
+      const groups = groupMp3Files(folder);
+      const groupEntries = Array.from(groups.entries());
+      const total = groupEntries.length;
+      const transcribeResults: { fileName: string; success: boolean; error?: string }[] = [];
+
+      let nextTranscribeIndex = 0;
+      async function transcribeWorker(): Promise<void> {
+        while (nextTranscribeIndex < groupEntries.length) {
+          const i = nextTranscribeIndex++;
+          const [baseName, files] = groupEntries[i];
+          const texts: string[] = [];
+
+          try {
+            for (let j = 0; j < files.length; j++) {
+              event.sender.send('transcribe-progress', {
+                fileName: `${baseName}.mp3`,
+                percent: Math.round((j / files.length) * 90),
+                status: 'transcribing',
+                currentPart: j + 1,
+                totalParts: files.length,
+                currentFile: i + 1,
+                totalFiles: total
+              });
+
+              const text = await transcribeWithRetry(files[j], key);
+              texts.push(text);
+            }
+
+            const mergedText = texts.join('\n\n');
+            const txtPath = join(folder, `${baseName}.txt`);
+            writeFileSync(txtPath, mergedText, 'utf-8');
+
+            event.sender.send('transcribe-progress', {
+              fileName: `${baseName}.mp3`,
+              percent: 100,
+              status: 'done',
+              currentFile: i + 1,
+              totalFiles: total
+            });
+
+            transcribeResults.push({ fileName: baseName, success: true });
+          } catch (err) {
+            event.sender.send('transcribe-progress', {
+              fileName: `${baseName}.mp3`,
+              percent: 0,
+              status: 'error',
+              currentFile: i + 1,
+              totalFiles: total
+            });
+            transcribeResults.push({
+              fileName: baseName,
+              success: false,
+              error: (err as Error).message
+            });
+          }
+        }
+      }
+
+      const transcribeWorkers = Array.from(
+        { length: Math.min(2, groupEntries.length) },
+        () => transcribeWorker()
+      );
+      await Promise.all(transcribeWorkers);
+
+      const transcribeSuccessCount = transcribeResults.filter((r) => r.success).length;
+      return {
+        success: true,
+        downloadResults,
+        downloadSuccessCount,
+        transcribeResults,
+        transcribeSuccessCount,
+        total
+      };
+    }
+  );
+
   // 텍스트 파일 열기
   ipcMain.handle('open-file', async (_event, filePath: string) => {
     shell.openPath(filePath);

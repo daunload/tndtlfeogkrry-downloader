@@ -91,6 +91,16 @@ const api = {
   selectFolder: (): Promise<{ success: boolean; folderPath?: string }> =>
     ipcRenderer.invoke('select-folder'),
 
+  downloadAndTranscribeAll: (
+    videos: { contentId: string; title: string }[]
+  ): Promise<{
+    success: boolean
+    error?: string
+    downloadSuccessCount?: number
+    transcribeSuccessCount?: number
+    total?: number
+  }> => ipcRenderer.invoke('download-and-transcribe-all', videos),
+
   onTranscribeProgress: (
     callback: (data: {
       fileName: string

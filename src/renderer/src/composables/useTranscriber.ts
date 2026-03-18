@@ -83,6 +83,28 @@ export function useTranscriber() {
     }
   }
 
+  async function downloadAndTranscribeAll(
+    videos: { contentId: string; title: string }[]
+  ): Promise<void> {
+    isTranscribingBatch.value = true
+    transcribeMessage.value = '전체 다운로드 및 텍스트 변환을 시작합니다...'
+
+    const result = await window.api.downloadAndTranscribeAll(videos)
+
+    isTranscribingBatch.value = false
+
+    if (result.error === 'cancelled') {
+      transcribeMessage.value = ''
+      return
+    }
+
+    if (result.success) {
+      transcribeMessage.value = `다운로드 ${result.downloadSuccessCount}/${result.total}개, 변환 ${result.transcribeSuccessCount}/${result.total}개 성공`
+    } else {
+      transcribeMessage.value = result.error || '전체 변환 실패'
+    }
+  }
+
   async function openFile(filePath: string): Promise<void> {
     await window.api.openFile(filePath)
   }
@@ -99,6 +121,7 @@ export function useTranscriber() {
     deleteApiKey,
     transcribe,
     transcribeBatch,
+    downloadAndTranscribeAll,
     openFile
   }
 }

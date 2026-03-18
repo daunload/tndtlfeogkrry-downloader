@@ -41,7 +41,7 @@ const {
   saveApiKey,
   deleteApiKey,
   transcribe,
-  transcribeBatch
+  downloadAndTranscribeAll
 } = useTranscriber()
 
 const showSettings = ref(false)
@@ -66,9 +66,10 @@ async function handleTranscribe(video: { contentId: string; title: string }): Pr
 }
 
 async function handleTranscribeAll(): Promise<void> {
-  const result = await window.api.selectFolder()
-  if (!result.success || !result.folderPath) return
-  await transcribeBatch(result.folderPath)
+  if (videos.value.length === 0) return
+  await downloadAndTranscribeAll(
+    videos.value.map((v) => ({ contentId: v.contentId, title: v.title }))
+  )
 }
 
 async function handleSaveApiKey(key: string): Promise<void> {
