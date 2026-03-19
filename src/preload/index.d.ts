@@ -68,6 +68,12 @@ interface DownloadApi {
   }>
   onTranscribeProgress: (callback: (data: TranscribeProgressData) => void) => void
   removeTranscribeProgress: () => void
+  checkForUpdate: () => Promise<{
+    hasUpdate: boolean
+    currentVersion: string
+    latestVersion?: string
+    downloadUrl?: string
+  }>
 }
 
 declare global {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Sun, Moon, Book, LogIn, Key } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { Sun, Moon, Book, LogIn, Key, ArrowUpCircle } from 'lucide-vue-next'
 import { useTheme } from '../../composables/useTheme'
 
 defineProps<{
@@ -13,6 +14,28 @@ const emit = defineEmits<{
 }>()
 
 const { isDark, toggleTheme } = useTheme()
+
+const updateInfo = ref<{
+  hasUpdate: boolean
+  currentVersion: string
+  latestVersion?: string
+  downloadUrl?: string
+} | null>(null)
+
+onMounted(async () => {
+  try {
+    const result = await window.api.checkForUpdate()
+    updateInfo.value = result
+  } catch {
+    // 업데이트 확인 실패 무시
+  }
+})
+
+function openDownload(): void {
+  if (updateInfo.value?.downloadUrl) {
+    window.open(updateInfo.value.downloadUrl)
+  }
+}
 </script>
 
 <template>
@@ -46,6 +69,17 @@ const { isDark, toggleTheme } = useTheme()
     </nav>
 
     <div class="p-4 md:p-6 border-t border-border/50 flex flex-col gap-3">
+      <!-- 업데이트 알림 -->
+      <button
+        v-if="updateInfo?.hasUpdate"
+        class="w-full flex items-center justify-center md:justify-start gap-0 md:gap-2.5 px-0 md:px-4 py-2.5 rounded-xl text-sm font-bold bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all cursor-pointer border border-amber-500/30"
+        @click="openDownload"
+        :title="`v${updateInfo.latestVersion} 업데이트 다운로드`"
+      >
+        <ArrowUpCircle :size="18" class="shrink-0 animate-bounce" />
+        <span class="hidden md:block whitespace-nowrap truncate">v{{ updateInfo.latestVersion }} 업데이트</span>
+      </button>
+
       <button
         v-if="!isLoggedIn"
         class="w-full h-12 md:h-auto flex items-center justify-center gap-0 md:gap-2 px-0 md:px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary-hover shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -71,6 +105,11 @@ const { isDark, toggleTheme } = useTheme()
           <span class="hidden md:block whitespace-nowrap">{{ isDark ? '라이트 모드' : '다크 모드' }}</span>
         </span>
       </button>
+
+      <!-- 현재 버전 -->
+      <div v-if="updateInfo" class="hidden md:block text-center text-[10px] text-text-3 opacity-50">
+        v{{ updateInfo.currentVersion }}
+      </div>
     </div>
   </aside>
 </template>

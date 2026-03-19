@@ -3,6 +3,7 @@ import { registerCoursesHandlers } from './courses'
 import { registerDownloadHandlers } from './download'
 import { registerTranscribeHandlers } from './transcribe'
 import { registerSettingsHandlers } from './settings'
+import { registerUpdateHandlers } from './update'
 
 export function registerAllIpcHandlers(): void {
   registerAuthHandlers()
@@ -10,4 +11,5 @@ export function registerAllIpcHandlers(): void {
   registerDownloadHandlers()
   registerTranscribeHandlers()
   registerSettingsHandlers()
+  registerUpdateHandlers()
 }

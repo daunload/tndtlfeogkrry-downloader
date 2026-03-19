@@ -98,7 +98,14 @@ const api = {
 
   removeTranscribeProgress: (): void => {
     ipcRenderer.removeAllListeners(IPC_EVENT.TRANSCRIBE_PROGRESS)
-  }
+  },
+
+  checkForUpdate: (): Promise<{
+    hasUpdate: boolean
+    currentVersion: string
+    latestVersion?: string
+    downloadUrl?: string
+  }> => ipcRenderer.invoke(IPC.CHECK_FOR_UPDATE)
 }
 
 if (process.contextIsolated) {

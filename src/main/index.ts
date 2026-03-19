@@ -1,13 +1,7 @@
 import { app, BrowserWindow } from 'electron'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { autoUpdater } from 'electron-updater'
-import log from 'electron-log'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createWindow, destroyLmsWin } from './window'
 import { registerAllIpcHandlers } from './ipc'
-
-autoUpdater.logger = log
-autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = true
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
@@ -18,10 +12,6 @@ app.whenReady().then(() => {
 
   registerAllIpcHandlers()
   createWindow()
-
-  if (!is.dev) {
-    autoUpdater.checkForUpdatesAndNotify()
-  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

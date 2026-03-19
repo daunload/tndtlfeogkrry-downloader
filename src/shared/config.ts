@@ -18,3 +18,6 @@ export const GEMINI_MAX_RETRIES = 3
 
 /** 다운로드 타임아웃 (5분) */
 export const DOWNLOAD_TIMEOUT_MS = 300_000
+
+/** GitHub 리포지토리 (업데이트 확인용) */
+export const GITHUB_REPO = 'daunload/tndtlfeogkrry-downloader'

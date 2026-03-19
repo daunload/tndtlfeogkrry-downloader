@@ -7,7 +7,7 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        external: ['fluent-ffmpeg', '@ffmpeg-installer/ffmpeg', 'electron-updater', 'electron-log']
+        external: ['fluent-ffmpeg', '@ffmpeg-installer/ffmpeg']
       }
     }
   },

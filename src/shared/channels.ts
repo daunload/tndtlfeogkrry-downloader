@@ -13,7 +13,8 @@ export const IPC = {
   DOWNLOAD_AND_TRANSCRIBE_ALL: 'download-and-transcribe-all',
   OPEN_FILE: 'open-file',
   SELECT_FOLDER: 'select-folder',
-  SELECT_DOWNLOAD_FOLDER: 'select-download-folder'
+  SELECT_DOWNLOAD_FOLDER: 'select-download-folder',
+  CHECK_FOR_UPDATE: 'check-for-update'
 } as const
 
 /** ipcMain.send / ipcRenderer.on 이벤트 채널명 */
