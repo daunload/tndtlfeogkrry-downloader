@@ -37,38 +37,36 @@ const emit = defineEmits<{
 <template>
   <div class="h-full flex flex-col">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 sm:mb-10 gap-6 sm:gap-5">
-      <div class="flex items-center gap-3 sm:gap-5 -ml-2 sm:-ml-3">
+    <div class="flex flex-col gap-4 mb-8">
+      <div class="flex items-center gap-3 -ml-2">
         <button
-          class="p-2 sm:p-3 rounded-2xl border-none cursor-pointer bg-transparent text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all"
+          class="p-2 rounded-2xl border-none cursor-pointer bg-transparent text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all shrink-0"
           @click="emit('back')"
           title="목록으로 돌아가기"
         >
-          <ArrowLeft :size="24" sm:size="28" />
+          <ArrowLeft :size="24" />
         </button>
 
-        <h2 class="text-2xl sm:text-3xl font-black text-text-1 tracking-tight">
+        <h2 class="text-2xl font-black text-text-1 tracking-tight whitespace-nowrap">
           강의 영상 리스트
         </h2>
       </div>
 
-      <div class="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
-        <div class="flex-1 sm:flex-none">
-          <FormatToggle v-model="downloadFormat" class="w-full sm:w-auto" />
-        </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <FormatToggle v-model="downloadFormat" />
         <button
           v-if="videos.length > 0"
-          class="flex-[1.5] sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:-translate-y-0.5"
+          class="flex items-center gap-2 px-5 py-2.5 rounded-2xl border-none text-sm font-bold cursor-pointer whitespace-nowrap bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:-translate-y-0.5"
           :disabled="isDownloadingAll || isLoading"
           @click="emit('downloadAll')"
         >
           <Loader2 v-if="isDownloadingAll" :size="18" class="animate-spin" />
           <Download v-else :size="18" />
-          <span class="whitespace-nowrap">{{ isDownloadingAll ? '중...' : '전체 다운로드' }}</span>
+          {{ isDownloadingAll ? '다운로드 중...' : '전체 다운로드' }}
         </button>
         <button
           v-if="videos.length > 0 && hasApiKey"
-          class="flex items-center gap-2.5 px-5 py-3 rounded-2xl border-none text-sm font-bold cursor-pointer bg-purple-500 text-white hover:bg-purple-600 shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none"
+          class="flex items-center gap-2 px-5 py-2.5 rounded-2xl border-none text-sm font-bold cursor-pointer whitespace-nowrap bg-purple-500 text-white hover:bg-purple-600 shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none"
           :disabled="isTranscribingBatch || isLoading"
           @click="emit('transcribeAll')"
         >
@@ -80,15 +78,15 @@ const emit = defineEmits<{
     </div>
 
     <!-- Folder Selection -->
-    <div class="flex items-center gap-3 mb-6 px-1">
+    <div class="flex items-center gap-3 mb-6 px-1 min-w-0">
       <button
-        class="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium cursor-pointer bg-surface-mute text-text-2 hover:bg-surface-hover hover:text-text-1 transition-all shrink-0"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium cursor-pointer whitespace-nowrap bg-surface-mute text-text-2 hover:bg-surface-hover hover:text-text-1 transition-all shrink-0"
         @click="emit('selectFolder')"
       >
         <FolderOpen :size="16" />
         폴더 선택
       </button>
-      <div v-if="downloadFolder" class="flex items-center gap-2 min-w-0 flex-1">
+      <div v-if="downloadFolder" class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
         <span class="text-sm text-text-2 truncate" :title="downloadFolder">
           {{ downloadFolder }}
         </span>
@@ -100,7 +98,7 @@ const emit = defineEmits<{
           <X :size="14" />
         </button>
       </div>
-      <span v-else class="text-sm text-text-3">
+      <span v-else class="text-sm text-text-3 truncate">
         폴더를 선택하지 않으면 다운로드 시 매번 선택합니다
       </span>
     </div>
