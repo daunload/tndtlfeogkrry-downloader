@@ -107,6 +107,12 @@ export function registerCoursesHandlers(): void {
               item.content_data?.item_content_data?.content_type
             )
           ) {
+            // 차주 강의가 미리 올라와 잠긴 케이스 처리
+            const isLocked = item.content_data?.unlock_at
+              ? new Date(item.content_data?.unlock_at) > new Date()
+              : false;
+            if (isLocked) continue;
+
             const data = item.content_data.item_content_data;
             if (data.content_id) {
               videos.push({
