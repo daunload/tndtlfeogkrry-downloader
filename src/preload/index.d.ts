@@ -50,9 +50,13 @@ interface DownloadApi {
   getGeminiApiKey: () => Promise<{ hasKey: boolean }>;
   deleteGeminiApiKey: () => Promise<{ success: boolean }>;
   transcribeAudio: (
-    filePath: string
+    filePath: string,
+    withSummary?: boolean
   ) => Promise<{ success: boolean; text?: string; txtPath?: string; error?: string }>;
-  transcribeBatch: (dirPath: string) => Promise<{
+  transcribeBatch: (
+    dirPath: string,
+    withSummary?: boolean
+  ) => Promise<{
     success: boolean;
     error?: string;
     results?: { fileName: string; success: boolean; error?: string }[];
@@ -64,7 +68,8 @@ interface DownloadApi {
   selectDownloadFolder: () => Promise<{ success: boolean; folderPath?: string }>;
   downloadAndTranscribeAll: (
     videos: VideoRef[],
-    folderPath?: string
+    folderPath?: string,
+    withSummary?: boolean
   ) => Promise<{
     success: boolean;
     error?: string;

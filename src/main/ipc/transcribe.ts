@@ -16,7 +16,7 @@ import { downloadOne } from '../services/download';
 import { convertToMp3, splitMp3 } from '../services/media';
 
 export function registerTranscribeHandlers(): void {
-  ipcMain.handle(IPC.TRANSCRIBE_AUDIO, async (event, filePath: string) => {
+  ipcMain.handle(IPC.TRANSCRIBE_AUDIO, async (event, filePath: string, withSummary: boolean = true) => {
     const apiKey = loadGeminiApiKey();
     if (!apiKey) {
       return { success: false, error: 'Gemini API 키가 설정되지 않았습니다.' };
@@ -91,13 +91,15 @@ export function registerTranscribeHandlers(): void {
       });
 
       const mergedText = texts.join('\n\n');
-      const summarizeTextResult = await summarizeWithRetry(mergedText, apiKey);
 
       const txtPath = join(dir, `${baseName}.txt`);
       writeFileSync(txtPath, mergedText, 'utf-8');
 
-      const summarizeTextPath = join(dir, `${baseName}_요약본.md`);
-      writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+      if (withSummary) {
+        const summarizeTextResult = await summarizeWithRetry(mergedText, apiKey);
+        const summarizeTextPath = join(dir, `${baseName}_요약본.md`);
+        writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+      }
 
       // mp4에서 변환된 임시 mp3 파일 정리
       if (convertedFromMp4) {
@@ -137,7 +139,7 @@ export function registerTranscribeHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC.TRANSCRIBE_BATCH, async (event, dirPath: string) => {
+  ipcMain.handle(IPC.TRANSCRIBE_BATCH, async (event, dirPath: string, withSummary: boolean = true) => {
     const apiKey = loadGeminiApiKey();
     if (!apiKey) {
       return { success: false, error: 'Gemini API 키가 설정되지 않았습니다.' };
@@ -173,13 +175,15 @@ export function registerTranscribeHandlers(): void {
           }
 
           const mergedText = texts.join('\n\n');
-          const summarizeTextResult = await summarizeWithRetry(mergedText, key);
 
           const txtPath = join(dirPath, `${baseName}.txt`);
           writeFileSync(txtPath, mergedText, 'utf-8');
 
-          const summarizeTextPath = join(dirPath, `${baseName}_요약본.md`);
-          writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+          if (withSummary) {
+            const summarizeTextResult = await summarizeWithRetry(mergedText, key);
+            const summarizeTextPath = join(dirPath, `${baseName}_요약본.md`);
+            writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+          }
 
           event.sender.send(IPC_EVENT.TRANSCRIBE_PROGRESS, {
             fileName: `${baseName}.mp3`,
@@ -215,7 +219,7 @@ export function registerTranscribeHandlers(): void {
 
   ipcMain.handle(
     IPC.DOWNLOAD_AND_TRANSCRIBE_ALL,
-    async (event, videos: { contentId: string; title: string }[], folderPath?: string) => {
+    async (event, videos: { contentId: string; title: string }[], folderPath?: string, withSummary: boolean = true) => {
       const apiKey = loadGeminiApiKey();
       if (!apiKey) {
         return { success: false, error: 'Gemini API 키가 설정되지 않았습니다.' };
@@ -300,13 +304,15 @@ export function registerTranscribeHandlers(): void {
             }
 
             const mergedText = texts.join('\n\n');
-            const summarizeTextResult = await summarizeWithRetry(mergedText, key);
 
             const txtPath = join(folder, `${baseName}.txt`);
             writeFileSync(txtPath, mergedText, 'utf-8');
 
-            const summarizeTextPath = join(folder, `${baseName}_요약본.md`);
-            writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+            if (withSummary) {
+              const summarizeTextResult = await summarizeWithRetry(mergedText, key);
+              const summarizeTextPath = join(folder, `${baseName}_요약본.md`);
+              writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+            }
 
             event.sender.send(IPC_EVENT.TRANSCRIBE_PROGRESS, {
               fileName: `${baseName}.mp3`,

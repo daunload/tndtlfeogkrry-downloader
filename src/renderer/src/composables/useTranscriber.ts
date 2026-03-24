@@ -9,6 +9,7 @@ export interface TranscribeStatus {
 }
 
 const hasApiKey = ref(false);
+const withSummary = ref(true);
 const isTranscribing = ref(false);
 const isTranscribingBatch = ref(false);
 const transcribeProgressMap = ref<Record<string, number>>({});
@@ -17,6 +18,7 @@ const transcribeMessage = ref('');
 
 interface UseTranscriberReturn {
   hasApiKey: Ref<boolean>;
+  withSummary: Ref<boolean>;
   isTranscribing: Ref<boolean>;
   isTranscribingBatch: Ref<boolean>;
   transcribeProgressMap: Ref<Record<string, number>>;
@@ -74,7 +76,7 @@ export function useTranscriber(): UseTranscriberReturn {
     transcribeProgressMap.value[fileName] = 0;
     transcribeMessage.value = `텍스트 변환 중: ${fileName}`;
 
-    const result = await window.api.transcribeAudio(filePath);
+    const result = await window.api.transcribeAudio(filePath, withSummary.value);
 
     isTranscribing.value = false;
 
@@ -91,7 +93,7 @@ export function useTranscriber(): UseTranscriberReturn {
     isTranscribingBatch.value = true;
     transcribeMessage.value = '전체 텍스트 변환을 시작합니다...';
 
-    const result = await window.api.transcribeBatch(dirPath);
+    const result = await window.api.transcribeBatch(dirPath, withSummary.value);
 
     isTranscribingBatch.value = false;
 
@@ -109,7 +111,7 @@ export function useTranscriber(): UseTranscriberReturn {
     isTranscribingBatch.value = true;
     transcribeMessage.value = '전체 다운로드 및 텍스트 변환을 시작합니다...';
 
-    const result = await window.api.downloadAndTranscribeAll(videos, folderPath);
+    const result = await window.api.downloadAndTranscribeAll(videos, folderPath, withSummary.value);
 
     isTranscribingBatch.value = false;
 
@@ -131,6 +133,7 @@ export function useTranscriber(): UseTranscriberReturn {
 
   return {
     hasApiKey,
+    withSummary,
     isTranscribing,
     isTranscribingBatch,
     transcribeProgressMap,

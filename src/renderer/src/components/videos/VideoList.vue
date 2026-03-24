@@ -10,7 +10,8 @@ import {
   X,
   ChevronDown,
   CheckSquare,
-  Square
+  Square,
+  Check
 } from 'lucide-vue-next';
 import type { VideoItem } from '../../types';
 import type { TranscribeStatus } from '../../composables/useTranscriber';
@@ -34,6 +35,7 @@ const props = defineProps<{
 }>();
 
 const downloadFormat = defineModel<'mp4' | 'mp3'>('downloadFormat', { required: true });
+const withSummary = defineModel<boolean>('withSummary', { required: true });
 
 const emit = defineEmits<{
   back: [];
@@ -124,6 +126,30 @@ function closeDropdown(e: MouseEvent): void {
 
       <div class="flex flex-wrap items-center gap-3">
         <FormatToggle v-model="downloadFormat" />
+
+        <!-- 요약본 생성 체크박스 -->
+        <button
+          v-if="hasApiKey"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-all duration-200"
+          :class="
+            withSummary
+              ? 'bg-purple-500/10 border-purple-500/30 text-purple-500'
+              : 'bg-surface-mute border-border/50 text-text-3 hover:text-text-2'
+          "
+          @click="withSummary = !withSummary"
+        >
+          <div
+            class="w-4 h-4 rounded border flex items-center justify-center transition-all duration-200"
+            :class="
+              withSummary
+                ? 'bg-purple-500 border-purple-500'
+                : 'bg-transparent border-text-3'
+            "
+          >
+            <Check v-if="withSummary" :size="12" class="text-white" />
+          </div>
+          요약본 생성
+        </button>
 
         <!-- 전체/해제 선택 버튼 -->
         <button

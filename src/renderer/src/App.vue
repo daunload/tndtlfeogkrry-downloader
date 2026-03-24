@@ -39,6 +39,7 @@ const {
 
 const {
   hasApiKey,
+  withSummary,
   isTranscribingBatch,
   transcribeProgressMap,
   transcribeStatusMap,
@@ -146,6 +147,7 @@ async function handleDeleteApiKey(): Promise<void> {
               <VideoList
                 v-else
                 v-model:download-format="downloadFormat"
+                v-model:with-summary="withSummary"
                 :videos="videos"
                 :is-loading="isLoading"
                 :is-downloading-all="isDownloadingAll"
