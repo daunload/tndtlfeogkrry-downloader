@@ -53,6 +53,9 @@ export function useDownloader(): UseDownloaderReturn {
         splitTotal: data.splitTotal
       };
     }
+    if (data.batchCompleted != null && data.batchTotal != null) {
+      message.value = `다운로드 중: ${data.batchCompleted}/${data.batchTotal}개 완료`;
+    }
   });
 
   onUnmounted(() => {

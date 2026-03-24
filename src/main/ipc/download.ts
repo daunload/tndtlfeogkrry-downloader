@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, dialog } from 'electron';
 import { resolve } from 'path';
-import { IPC } from '../../shared/channels';
+import { IPC, IPC_EVENT } from '../../shared/channels';
 import { MAX_CONCURRENT_DOWNLOADS, toSafeFileName } from '../../shared/config';
 import { downloadOne } from '../services/download';
 
@@ -78,6 +78,7 @@ export function registerDownloadHandlers(): void {
 
       // Worker Pool 패턴: nextIndex를 공유 커서로 사용하여 동시성 제한
       let nextIndex = 0;
+      let completedCount = 0;
       async function worker(): Promise<void> {
         while (nextIndex < videos.length) {
           const i = nextIndex++;
@@ -92,6 +93,15 @@ export function registerDownloadHandlers(): void {
             error: result.error,
             filePath: result.filePath
           };
+          completedCount++;
+          event.sender.send(IPC_EVENT.DOWNLOAD_PROGRESS, {
+            contentId: video.contentId,
+            downloaded: 0,
+            total: 0,
+            percent: result.success ? 100 : -1,
+            batchCompleted: completedCount,
+            batchTotal: videos.length
+          });
         }
       }
 

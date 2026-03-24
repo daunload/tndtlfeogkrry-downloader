@@ -45,6 +45,8 @@ export interface DownloadProgressData {
   status?: 'converting' | 'splitting' | 'split-done' | 'done';
   splitCurrent?: number; // 현재 분할 중인 파트 번호
   splitTotal?: number; // 총 분할 파트 수
+  batchCompleted?: number; // 일괄 다운로드 완료 개수
+  batchTotal?: number; // 일괄 다운로드 전체 개수
 }
 
 /** transcribe-progress 이벤트 페이로드 (Main → Renderer) */
