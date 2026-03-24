@@ -47,30 +47,44 @@ export function registerTranscribeHandlers(): void {
             await convertToMp3(filePath, mp3Path);
             convertedFromMp4 = true;
 
-            // 19MB 초과 시 분할
-            await splitMp3(mp3Path, name, event.sender);
+            // File API는 대용량 파일을 지원하므로 분할 불필요
+            if (!useFileApi) {
+              await splitMp3(mp3Path, name, event.sender);
+            }
           }
         }
 
-        // mp3 분할 파일 검색 (macOS HFS+에서 한글 NFD 정규화 대응)
-        const allFiles = readdirSync(dir)
-          .filter((f) => f.endsWith('.mp3'))
-          .sort();
-        const normalizedBaseName = baseName.normalize('NFC');
-        const escapedBaseName = normalizedBaseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const partRegex = new RegExp(`^${escapedBaseName}_part\\d+\\.mp3$`);
-        const partFiles = allFiles
-          .filter((f) => partRegex.test(f.normalize('NFC')))
-          .map((f) => join(dir, f));
+        let filesToTranscribe: string[];
 
-        // 분할 파일도 없고 원본 mp3도 없으면 에러
-        if (partFiles.length === 0 && !existsSync(mp3Path)) {
-          return {
-            success: false,
-            error: `MP3 파일을 찾을 수 없습니다: ${basename(mp3Path)}. 먼저 MP3로 다운로드해주세요.`
-          };
+        if (useFileApi) {
+          // File API: 원본 MP3를 통째로 전송 (분할 불필요)
+          if (!existsSync(mp3Path)) {
+            return {
+              success: false,
+              error: `MP3 파일을 찾을 수 없습니다: ${basename(mp3Path)}. 먼저 MP3로 다운로드해주세요.`
+            };
+          }
+          filesToTranscribe = [mp3Path];
+        } else {
+          // inlineData: 분할 파일이 있으면 사용
+          const allFiles = readdirSync(dir)
+            .filter((f) => f.endsWith('.mp3'))
+            .sort();
+          const normalizedBaseName = baseName.normalize('NFC');
+          const escapedBaseName = normalizedBaseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const partRegex = new RegExp(`^${escapedBaseName}_part\\d+\\.mp3$`);
+          const partFiles = allFiles
+            .filter((f) => partRegex.test(f.normalize('NFC')))
+            .map((f) => join(dir, f));
+
+          if (partFiles.length === 0 && !existsSync(mp3Path)) {
+            return {
+              success: false,
+              error: `MP3 파일을 찾을 수 없습니다: ${basename(mp3Path)}. 먼저 MP3로 다운로드해주세요.`
+            };
+          }
+          filesToTranscribe = partFiles.length > 0 ? partFiles : [mp3Path];
         }
-        const filesToTranscribe = partFiles.length > 0 ? partFiles : [mp3Path];
         const totalParts = filesToTranscribe.length;
         const texts: string[] = [];
 
