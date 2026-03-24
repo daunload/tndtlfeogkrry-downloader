@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Sun, Moon, Book, LogIn, ArrowUpCircle, Settings } from 'lucide-vue-next';
+import { Sun, Moon, Book, LogIn, ArrowUpCircle, Settings, Archive } from 'lucide-vue-next';
 import { useTheme } from '../../composables/useTheme';
 
 defineProps<{
   isLoggedIn: boolean;
   hasApiKey: boolean;
+  activeView: 'courses' | 'library';
 }>();
 
 const emit = defineEmits<{
   login: [];
   openSettings: [];
+  openLibrary: [];
+  openCourses: [];
 }>();
 
 const { isDark, toggleTheme } = useTheme();
@@ -63,11 +66,31 @@ function openDownload(): void {
       </div>
 
       <button
-        class="w-full flex items-center justify-center md:justify-start gap-0 md:gap-3.5 px-0 md:px-4 py-3 rounded-xl text-sm font-semibold bg-primary/10 text-primary transition-all shadow-sm shadow-primary/5 group/btn"
+        class="w-full flex items-center justify-center md:justify-start gap-0 md:gap-3.5 px-0 md:px-4 py-3 rounded-xl text-sm font-semibold transition-all group/btn"
+        :class="
+          activeView === 'courses'
+            ? 'bg-primary/10 text-primary shadow-sm shadow-primary/5 font-semibold'
+            : 'text-text-2 hover:bg-surface-mute hover:text-text-1 font-medium'
+        "
         title="내 강의 목록"
+        @click="emit('openCourses')"
       >
         <Book :size="20" class="shrink-0" />
         <span class="hidden md:block">내 강의 목록</span>
+      </button>
+
+      <button
+        class="w-full flex items-center justify-center md:justify-start gap-0 md:gap-3.5 px-0 md:px-4 py-3 rounded-xl text-sm transition-all group/btn"
+        :class="
+          activeView === 'library'
+            ? 'bg-primary/10 text-primary shadow-sm shadow-primary/5 font-semibold'
+            : 'text-text-2 hover:bg-surface-mute hover:text-text-1 font-medium'
+        "
+        title="내 라이브러리"
+        @click="emit('openLibrary')"
+      >
+        <Archive :size="20" class="shrink-0" />
+        <span class="hidden md:block">내 라이브러리</span>
       </button>
 
       <button

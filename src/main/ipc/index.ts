@@ -4,6 +4,7 @@ import { registerDownloadHandlers } from './download';
 import { registerTranscribeHandlers } from './transcribe';
 import { registerSettingsHandlers } from './settings';
 import { registerUpdateHandlers } from './update';
+import { registerHistoryHandlers } from './history';
 
 export function registerAllIpcHandlers(): void {
   registerAuthHandlers();
@@ -12,4 +13,5 @@ export function registerAllIpcHandlers(): void {
   registerTranscribeHandlers();
   registerSettingsHandlers();
   registerUpdateHandlers();
+  registerHistoryHandlers();
 }

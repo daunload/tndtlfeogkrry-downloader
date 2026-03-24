@@ -2,10 +2,13 @@ import { ElectronAPI } from '@electron-toolkit/preload';
 import type {
   CourseItem,
   VideoItem,
-  VideoRef,
+  VideoRefWithMeta,
+  DownloadMeta,
   DownloadProgressData,
   TranscribeProgressData,
-  GeminiModelId
+  GeminiModelId,
+  DownloadRecord,
+  DownloadRecordWithStatus
 } from '../shared/types';
 
 interface DownloadApi {
@@ -24,12 +27,14 @@ interface DownloadApi {
     contentId: string,
     title: string,
     format?: 'mp4' | 'mp3',
-    folderPath?: string
+    folderPath?: string,
+    meta?: DownloadMeta & { fileSize: number; duration: number }
   ) => Promise<{ success: boolean; error?: string; filePath?: string }>;
   downloadAll: (
-    videos: VideoRef[],
+    videos: VideoRefWithMeta[],
     format?: 'mp4' | 'mp3',
-    folderPath?: string
+    folderPath?: string,
+    meta?: DownloadMeta
   ) => Promise<{
     success: boolean;
     error?: string;
@@ -72,10 +77,11 @@ interface DownloadApi {
   selectFolder: () => Promise<{ success: boolean; folderPath?: string }>;
   selectDownloadFolder: () => Promise<{ success: boolean; folderPath?: string }>;
   downloadAndTranscribeAll: (
-    videos: VideoRef[],
+    videos: VideoRefWithMeta[],
     folderPath?: string,
     withSummary?: boolean,
-    useFileApi?: boolean
+    useFileApi?: boolean,
+    meta?: DownloadMeta
   ) => Promise<{
     success: boolean;
     error?: string;
@@ -91,6 +97,17 @@ interface DownloadApi {
     latestVersion?: string;
     downloadUrl?: string;
   }>;
+
+  // History
+  getHistory: () => Promise<{ success: boolean; records?: DownloadRecordWithStatus[] }>;
+  addHistory: (record: DownloadRecord) => Promise<{ success: boolean }>;
+  updateHistoryTranscription: (
+    contentId: string,
+    txtPath: string,
+    summaryPath?: string
+  ) => Promise<{ success: boolean }>;
+  removeHistory: (contentId: string) => Promise<{ success: boolean }>;
+  showInFolder: (filePath: string) => Promise<{ success: boolean }>;
 }
 
 declare global {

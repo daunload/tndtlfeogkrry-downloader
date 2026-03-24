@@ -10,10 +10,12 @@ import {
   MAX_CONCURRENT_TRANSCRIPTIONS,
   toSafeFileName
 } from '../../shared/config';
+import type { DownloadMeta, VideoRefWithMeta } from '../../shared/types';
 import { loadGeminiApiKey, loadGeminiModel, summarizeWithRetry } from '../services/gemini';
 import { transcribeWithRetry, groupMp3Files } from '../services/gemini';
 import { downloadOne } from '../services/download';
 import { convertToMp3, splitMp3 } from '../services/media';
+import { addRecord, updateTranscription } from '../services/history';
 
 export function registerTranscribeHandlers(): void {
   ipcMain.handle(
@@ -280,10 +282,11 @@ export function registerTranscribeHandlers(): void {
     IPC.DOWNLOAD_AND_TRANSCRIBE_ALL,
     async (
       event,
-      videos: { contentId: string; title: string }[],
+      videos: VideoRefWithMeta[],
       folderPath?: string,
       withSummary: boolean = true,
-      useFileApi: boolean = false
+      useFileApi: boolean = false,
+      meta?: DownloadMeta
     ) => {
       const apiKey = loadGeminiApiKey();
       const geminiModel = loadGeminiModel();
@@ -326,6 +329,20 @@ export function registerTranscribeHandlers(): void {
           const filePath = resolve(folder, `${safeName}.mp3`);
           const result = await downloadOne(video.contentId, filePath, event.sender, 'mp3');
           downloadResults[i] = { title: video.title, success: result.success, error: result.error };
+
+          if (result.success && meta) {
+            addRecord({
+              contentId: video.contentId,
+              title: video.title,
+              courseId: meta.courseId,
+              courseName: meta.courseName,
+              filePath,
+              format: 'mp3',
+              fileSize: video.fileSize,
+              duration: video.duration,
+              downloadedAt: new Date().toISOString()
+            });
+          }
         }
       }
 
@@ -338,6 +355,13 @@ export function registerTranscribeHandlers(): void {
       const downloadSuccessCount = downloadResults.filter((r) => r.success).length;
       if (downloadSuccessCount === 0) {
         return { success: false, error: '모든 다운로드가 실패했습니다.' };
+      }
+
+      // baseName → contentId 매핑 (히스토리 업데이트용)
+      const baseNameToContentId = new Map<string, string>();
+      for (const video of videos) {
+        const safeName = toSafeFileName(video.title);
+        baseNameToContentId.set(safeName, video.contentId);
       }
 
       // 2단계: 다운로드된 MP3 파일 텍스트 변환 (최대 MAX_CONCURRENT_TRANSCRIPTIONS개 병렬)
@@ -387,10 +411,17 @@ export function registerTranscribeHandlers(): void {
             const txtPath = join(folder, `${baseName}.txt`);
             writeFileSync(txtPath, mergedText, 'utf-8');
 
+            let summarizeTextPath: string | undefined;
             if (withSummary) {
               const summarizeTextResult = await summarizeWithRetry(mergedText, key, geminiModel);
-              const summarizeTextPath = join(folder, `${baseName}_요약본.md`);
+              summarizeTextPath = join(folder, `${baseName}_요약본.md`);
               writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
+            }
+
+            // 히스토리에 텍스트 변환 경로 업데이트
+            const cid = baseNameToContentId.get(baseName);
+            if (cid) {
+              updateTranscription(cid, txtPath, summarizeTextPath);
             }
 
             transcribeCompletedCount++;

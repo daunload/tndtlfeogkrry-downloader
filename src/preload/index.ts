@@ -4,10 +4,13 @@ import { IPC, IPC_EVENT } from '../shared/channels';
 import type {
   CourseItem,
   VideoItem,
-  VideoRef,
+  VideoRefWithMeta,
+  DownloadMeta,
   DownloadProgressData,
   TranscribeProgressData,
-  GeminiModelId
+  GeminiModelId,
+  DownloadRecord,
+  DownloadRecordWithStatus
 } from '../shared/types';
 
 const api = {
@@ -31,14 +34,16 @@ const api = {
     contentId: string,
     title: string,
     format?: 'mp4' | 'mp3',
-    folderPath?: string
+    folderPath?: string,
+    meta?: DownloadMeta & { fileSize: number; duration: number }
   ): Promise<{ success: boolean; error?: string; filePath?: string }> =>
-    ipcRenderer.invoke(IPC.DOWNLOAD_VIDEO, contentId, title, format || 'mp4', folderPath),
+    ipcRenderer.invoke(IPC.DOWNLOAD_VIDEO, contentId, title, format || 'mp4', folderPath, meta),
 
   downloadAll: (
-    videos: VideoRef[],
+    videos: VideoRefWithMeta[],
     format?: 'mp4' | 'mp3',
-    folderPath?: string
+    folderPath?: string,
+    meta?: DownloadMeta
   ): Promise<{
     success: boolean;
     error?: string;
@@ -51,7 +56,7 @@ const api = {
     }[];
     successCount?: number;
     total?: number;
-  }> => ipcRenderer.invoke(IPC.DOWNLOAD_ALL, videos, format || 'mp4', folderPath),
+  }> => ipcRenderer.invoke(IPC.DOWNLOAD_ALL, videos, format || 'mp4', folderPath, meta),
 
   onDownloadProgress: (callback: (data: DownloadProgressData) => void): void => {
     ipcRenderer.on(IPC_EVENT.DOWNLOAD_PROGRESS, (_event, data) => callback(data));
@@ -104,10 +109,11 @@ const api = {
     ipcRenderer.invoke(IPC.SELECT_DOWNLOAD_FOLDER),
 
   downloadAndTranscribeAll: (
-    videos: VideoRef[],
+    videos: VideoRefWithMeta[],
     folderPath?: string,
     withSummary?: boolean,
-    useFileApi?: boolean
+    useFileApi?: boolean,
+    meta?: DownloadMeta
   ): Promise<{
     success: boolean;
     error?: string;
@@ -120,7 +126,8 @@ const api = {
       videos,
       folderPath,
       withSummary ?? true,
-      useFileApi ?? false
+      useFileApi ?? false,
+      meta
     ),
 
   onTranscribeProgress: (callback: (data: TranscribeProgressData) => void): void => {
@@ -136,7 +143,27 @@ const api = {
     currentVersion: string;
     latestVersion?: string;
     downloadUrl?: string;
-  }> => ipcRenderer.invoke(IPC.CHECK_FOR_UPDATE)
+  }> => ipcRenderer.invoke(IPC.CHECK_FOR_UPDATE),
+
+  // --- History ---
+  getHistory: (): Promise<{ success: boolean; records?: DownloadRecordWithStatus[] }> =>
+    ipcRenderer.invoke(IPC.GET_HISTORY),
+
+  addHistory: (record: DownloadRecord): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC.ADD_HISTORY, record),
+
+  updateHistoryTranscription: (
+    contentId: string,
+    txtPath: string,
+    summaryPath?: string
+  ): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC.UPDATE_HISTORY_TRANSCRIPTION, contentId, txtPath, summaryPath),
+
+  removeHistory: (contentId: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC.REMOVE_HISTORY, contentId),
+
+  showInFolder: (filePath: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC.SHOW_IN_FOLDER, filePath)
 };
 
 if (process.contextIsolated) {

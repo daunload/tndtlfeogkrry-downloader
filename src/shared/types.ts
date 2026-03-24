@@ -36,6 +36,18 @@ export interface VideoRef {
   title: string;
 }
 
+/** 다운로드 요청 시 히스토리 기록에 필요한 메타데이터 */
+export interface DownloadMeta {
+  courseId: string;
+  courseName: string;
+}
+
+/** 히스토리 기록용 확장 비디오 참조 */
+export interface VideoRefWithMeta extends VideoRef {
+  fileSize: number;
+  duration: number;
+}
+
 /** download-progress 이벤트 페이로드 (Main → Renderer) */
 export interface DownloadProgressData {
   contentId: string;
@@ -47,6 +59,28 @@ export interface DownloadProgressData {
   splitTotal?: number; // 총 분할 파트 수
   batchCompleted?: number; // 일괄 다운로드 완료 개수
   batchTotal?: number; // 일괄 다운로드 전체 개수
+}
+
+/** 다운로드 히스토리 레코드 */
+export interface DownloadRecord {
+  contentId: string;
+  title: string;
+  courseId: string;
+  courseName: string;
+  filePath: string;
+  format: 'mp4' | 'mp3';
+  fileSize: number;
+  duration: number;
+  downloadedAt: string; // ISO 8601
+  txtPath?: string;
+  summaryPath?: string;
+}
+
+/** 렌더러에 반환될 때 파일 존재 여부 포함 */
+export interface DownloadRecordWithStatus extends DownloadRecord {
+  fileExists: boolean;
+  txtExists: boolean;
+  summaryExists: boolean;
 }
 
 /** transcribe-progress 이벤트 페이로드 (Main → Renderer) */

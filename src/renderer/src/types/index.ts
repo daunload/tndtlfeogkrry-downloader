@@ -3,5 +3,7 @@ export type {
   VideoItem,
   VideoRef,
   DownloadProgressData,
-  TranscribeProgressData
+  TranscribeProgressData,
+  DownloadRecord,
+  DownloadRecordWithStatus
 } from '../../../shared/types';

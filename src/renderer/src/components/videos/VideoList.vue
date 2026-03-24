@@ -34,6 +34,7 @@ const props = defineProps<{
   transcribeProgressMap?: Record<string, number>;
   transcribeStatusMap?: Record<string, TranscribeStatus>;
   downloadFolder?: string | null;
+  historyContentIds?: Set<string>;
 }>();
 
 const withSummary = defineModel<boolean>('withSummary', { required: true });
@@ -299,6 +300,7 @@ function closeDropdown(e: MouseEvent): void {
         :format-size="formatSize"
         :has-api-key="hasApiKey"
         :selected="selectedIds.has(video.contentId)"
+        :is-in-history="historyContentIds?.has(video.contentId) ?? false"
         :transcribe-progress="
           transcribeProgressMap?.[video.title + '.mp3'] ?? transcribeProgressMap?.[video.title]
         "

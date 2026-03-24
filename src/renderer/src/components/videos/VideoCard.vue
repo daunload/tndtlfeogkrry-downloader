@@ -25,6 +25,7 @@ const props = defineProps<{
   transcribeProgress?: number;
   transcribeStatus?: TranscribeStatus;
   selected?: boolean;
+  isInHistory?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -221,14 +222,23 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
         >
       </div>
 
-      <button
-        v-else
-        class="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl sm:rounded-2xl bg-surface-mute text-text-2 hover:bg-primary hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg"
-        title="다운로드"
-        @click="emit('download', video)"
-      >
-        <Download :size="18" sm:size="20" />
-      </button>
+      <div v-else class="relative">
+        <button
+          class="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl sm:rounded-2xl bg-surface-mute text-text-2 hover:bg-primary hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg"
+          :title="isInHistory ? '다운로드 (이미 받은 영상)' : '다운로드'"
+          @click="emit('download', video)"
+        >
+          <Download :size="18" sm:size="20" />
+        </button>
+        <!-- 이미 다운로드한 영상 뱃지 -->
+        <div
+          v-if="isInHistory"
+          class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-success flex items-center justify-center shadow-sm"
+          title="이미 다운로드한 영상"
+        >
+          <Check :size="10" :stroke-width="3" class="text-white" />
+        </div>
+      </div>
 
       <!-- 텍스트 변환 버튼 -->
       <template v-if="isComplete && hasApiKey">

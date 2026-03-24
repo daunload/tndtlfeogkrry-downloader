@@ -35,11 +35,15 @@ interface UseTranscriberReturn {
   deleteApiKey: () => Promise<void>;
   loadGeminiModel: () => Promise<void>;
   saveGeminiModel: (model: GeminiModelId) => Promise<boolean>;
-  transcribe: (filePath: string, fileName: string) => Promise<void>;
+  transcribe: (
+    filePath: string,
+    fileName: string
+  ) => Promise<{ success: boolean; txtPath?: string } | undefined>;
   transcribeBatch: (dirPath: string) => Promise<void>;
   downloadAndTranscribeAll: (
-    videos: { contentId: string; title: string }[],
-    folderPath?: string
+    videos: { contentId: string; title: string; fileSize: number; duration: number }[],
+    folderPath?: string,
+    meta?: { courseId: string; courseName: string }
   ) => Promise<void>;
   openFile: (filePath: string) => Promise<void>;
 }
@@ -133,7 +137,10 @@ export function useTranscriber(): UseTranscriberReturn {
     return false;
   }
 
-  async function transcribe(filePath: string, fileName: string): Promise<void> {
+  async function transcribe(
+    filePath: string,
+    fileName: string
+  ): Promise<{ success: boolean; txtPath?: string } | undefined> {
     isTranscribing.value = true;
     transcribeProgressMap.value[fileName] = 0;
     transcribeMessage.value = `텍스트 변환 중: ${fileName}`;
@@ -145,9 +152,11 @@ export function useTranscriber(): UseTranscriberReturn {
     if (result.success) {
       transcribeProgressMap.value[fileName] = 100;
       transcribeMessage.value = `변환 완료: ${fileName}`;
+      return { success: true, txtPath: result.txtPath };
     } else {
       delete transcribeProgressMap.value[fileName];
       transcribeMessage.value = `변환 실패 (${fileName}): ${result.error}`;
+      return { success: false };
     }
   }
 
@@ -167,8 +176,9 @@ export function useTranscriber(): UseTranscriberReturn {
   }
 
   async function downloadAndTranscribeAll(
-    videos: { contentId: string; title: string }[],
-    folderPath?: string
+    videos: { contentId: string; title: string; fileSize: number; duration: number }[],
+    folderPath?: string,
+    meta?: { courseId: string; courseName: string }
   ): Promise<void> {
     isTranscribingBatch.value = true;
     transcribeMessage.value = '전체 다운로드 및 텍스트 변환을 시작합니다...';
@@ -177,7 +187,8 @@ export function useTranscriber(): UseTranscriberReturn {
       videos,
       folderPath,
       withSummary.value,
-      useFileApi.value
+      useFileApi.value,
+      meta
     );
 
     isTranscribingBatch.value = false;

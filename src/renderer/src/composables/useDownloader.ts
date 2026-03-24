@@ -1,4 +1,4 @@
-import { ref, onUnmounted, type Ref } from 'vue';
+import { ref, computed, onUnmounted, type Ref } from 'vue';
 import type { CourseItem, VideoItem } from '../types';
 
 const isLoggedIn = ref(false);
@@ -16,6 +16,10 @@ const downloadFormat = ref<'mp4' | 'mp3'>('mp4');
 const downloadFolder = ref<string | null>(null);
 const downloadedPaths = ref<Record<string, string>>({});
 const isDownloadingAll = ref(false);
+const historyContentIds = ref<Set<string>>(new Set());
+
+/** 현재 선택된 코스 정보 */
+const selectedCourse = computed(() => courses.value.find((c) => c.id === selectedCourseId.value));
 
 interface UseDownloaderReturn {
   isLoggedIn: Ref<boolean>;
@@ -31,6 +35,7 @@ interface UseDownloaderReturn {
   downloadFolder: Ref<string | null>;
   downloadedPaths: Ref<Record<string, string>>;
   isDownloadingAll: Ref<boolean>;
+  historyContentIds: Ref<Set<string>>;
   login: () => Promise<void>;
   fetchCourses: () => Promise<void>;
   selectCourse: (course: CourseItem) => Promise<void>;
@@ -39,6 +44,7 @@ interface UseDownloaderReturn {
   clearDownloadFolder: () => void;
   downloadAll: (targetVideos?: VideoItem[]) => Promise<void>;
   download: (video: VideoItem) => Promise<void>;
+  loadHistoryIds: () => Promise<void>;
   formatDuration: (seconds: number) => string;
   formatSize: (bytes: number) => string;
 }
@@ -61,6 +67,20 @@ export function useDownloader(): UseDownloaderReturn {
   onUnmounted(() => {
     window.api.removeDownloadProgress();
   });
+
+  async function loadHistoryIds(): Promise<void> {
+    const result = await window.api.getHistory();
+    if (result.success && result.records) {
+      historyContentIds.value = new Set(result.records.map((r) => r.contentId));
+    }
+  }
+
+  /** 현재 코스의 메타 정보 (main 프로세스에서 히스토리 기록용) */
+  function getDownloadMeta(): { courseId: string; courseName: string } | undefined {
+    const course = selectedCourse.value;
+    if (!course) return undefined;
+    return { courseId: course.id, courseName: course.name };
+  }
 
   async function login(): Promise<void> {
     message.value = '로그인 창을 열고 있습니다...';
@@ -151,10 +171,17 @@ export function useDownloader(): UseDownloaderReturn {
       progressMap.value[v.contentId] = 0;
     }
 
+    const meta = getDownloadMeta();
     const result = await window.api.downloadAll(
-      targets.map((v) => ({ contentId: v.contentId, title: v.title })),
+      targets.map((v) => ({
+        contentId: v.contentId,
+        title: v.title,
+        fileSize: v.fileSize,
+        duration: v.duration
+      })),
       downloadFormat.value,
-      downloadFolder.value ?? undefined
+      downloadFolder.value ?? undefined,
+      meta
     );
 
     isDownloadingAll.value = false;
@@ -179,6 +206,7 @@ export function useDownloader(): UseDownloaderReturn {
           progressMap.value[v.contentId] = r.success ? 100 : -1;
           if (r.success && r.filePath) {
             downloadedPaths.value[v.contentId] = r.filePath;
+            historyContentIds.value.add(v.contentId);
           }
         }
       }
@@ -192,11 +220,13 @@ export function useDownloader(): UseDownloaderReturn {
     downloadingIds.value.add(video.contentId);
     progressMap.value[video.contentId] = 0;
 
+    const meta = getDownloadMeta();
     const result = await window.api.downloadVideo(
       video.contentId,
       video.title,
       downloadFormat.value,
-      downloadFolder.value ?? undefined
+      downloadFolder.value ?? undefined,
+      meta ? { ...meta, fileSize: video.fileSize, duration: video.duration } : undefined
     );
 
     downloadingIds.value.delete(video.contentId);
@@ -205,6 +235,7 @@ export function useDownloader(): UseDownloaderReturn {
       progressMap.value[video.contentId] = 100;
       if (result.filePath) {
         downloadedPaths.value[video.contentId] = result.filePath;
+        historyContentIds.value.add(video.contentId);
       }
       message.value = `다운로드 완료: ${video.title}`;
     } else if (result.error !== 'cancelled') {
@@ -237,6 +268,7 @@ export function useDownloader(): UseDownloaderReturn {
     downloadFolder,
     downloadedPaths,
     isDownloadingAll,
+    historyContentIds,
     login,
     fetchCourses,
     selectCourse,
@@ -245,6 +277,7 @@ export function useDownloader(): UseDownloaderReturn {
     clearDownloadFolder,
     downloadAll,
     download,
+    loadHistoryIds,
     formatDuration,
     formatSize
   };

@@ -2,7 +2,9 @@ import { BrowserWindow, ipcMain, dialog } from 'electron';
 import { resolve } from 'path';
 import { IPC, IPC_EVENT } from '../../shared/channels';
 import { MAX_CONCURRENT_DOWNLOADS, toSafeFileName } from '../../shared/config';
+import type { DownloadMeta, VideoRefWithMeta } from '../../shared/types';
 import { downloadOne } from '../services/download';
+import { addRecord } from '../services/history';
 
 export function registerDownloadHandlers(): void {
   ipcMain.handle(
@@ -12,7 +14,8 @@ export function registerDownloadHandlers(): void {
       contentId: string,
       title: string,
       format: 'mp4' | 'mp3' = 'mp4',
-      folderPath?: string
+      folderPath?: string,
+      meta?: DownloadMeta & { fileSize: number; duration: number }
     ) => {
       const mainWin = BrowserWindow.fromWebContents(event.sender);
       if (!mainWin) return { success: false, error: 'No window found' };
@@ -36,7 +39,23 @@ export function registerDownloadHandlers(): void {
         filePath = saveResult.filePath;
       }
 
-      return downloadOne(contentId, filePath, event.sender, format);
+      const result = await downloadOne(contentId, filePath, event.sender, format);
+
+      if (result.success && result.filePath && meta) {
+        addRecord({
+          contentId,
+          title,
+          courseId: meta.courseId,
+          courseName: meta.courseName,
+          filePath: result.filePath,
+          format,
+          fileSize: meta.fileSize,
+          duration: meta.duration,
+          downloadedAt: new Date().toISOString()
+        });
+      }
+
+      return result;
     }
   );
 
@@ -44,9 +63,10 @@ export function registerDownloadHandlers(): void {
     IPC.DOWNLOAD_ALL,
     async (
       event,
-      videos: { contentId: string; title: string }[],
+      videos: VideoRefWithMeta[],
       format: 'mp4' | 'mp3' = 'mp4',
-      folderPath?: string
+      folderPath?: string,
+      meta?: DownloadMeta
     ) => {
       const mainWin = BrowserWindow.fromWebContents(event.sender);
       if (!mainWin) return { success: false, error: 'No window found' };
@@ -93,6 +113,21 @@ export function registerDownloadHandlers(): void {
             error: result.error,
             filePath: result.filePath
           };
+
+          if (result.success && result.filePath && meta) {
+            addRecord({
+              contentId: video.contentId,
+              title: video.title,
+              courseId: meta.courseId,
+              courseName: meta.courseName,
+              filePath: result.filePath,
+              format,
+              fileSize: video.fileSize,
+              duration: video.duration,
+              downloadedAt: new Date().toISOString()
+            });
+          }
+
           completedCount++;
           event.sender.send(IPC_EVENT.DOWNLOAD_PROGRESS, {
             contentId: video.contentId,

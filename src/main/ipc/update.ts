@@ -75,7 +75,9 @@ export function registerUpdateHandlers(): void {
           downloadUrl: `https://github.com/${GITHUB_REPO}/releases/latest`
         };
       }
-    } catch {}
+    } catch {
+      // 업데이트 확인 실패 시 현재 버전 정보만 반환
+    }
 
     return { hasUpdate: false, currentVersion: app.getVersion() };
   });
