@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RefreshCw, LogIn, Loader2, BookOpen } from 'lucide-vue-next';
+import { RefreshCw, LogIn, Loader2 } from 'lucide-vue-next';
 import type { CourseItem } from '../../types';
 import CourseCard from './CourseCard.vue';
 
@@ -18,35 +18,32 @@ const emit = defineEmits<{
 <template>
   <div class="h-full flex flex-col">
     <div
-      class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 sm:mb-10 gap-6 sm:gap-4"
+      class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4"
     >
       <div>
-        <h2
-          class="text-2xl sm:text-3xl font-black text-text-1 flex items-center gap-3 tracking-tight"
-        >
-          <BookOpen class="text-primary" :size="28" />
+        <h2 class="text-xl sm:text-2xl font-bold text-text-1 tracking-tight">
           내 강의 목록
         </h2>
-        <p class="text-sm sm:text-[15px] text-text-3 mt-1 sm:mt-2 font-medium">
-          다운로드할 과목을 선택하여 강의 영상을 확인하세요.
+        <p class="text-sm text-text-3 mt-1 font-medium">
+          다운로드할 과목을 선택하세요.
         </p>
       </div>
 
-      <div class="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+      <div class="flex items-center gap-3 w-full sm:w-auto">
         <button
-          class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl border border-border bg-surface text-sm font-semibold text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all shadow-sm"
+          class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-border bg-surface text-sm font-semibold text-text-2 hover:bg-surface-mute hover:text-text-1 transition-all"
           @click="emit('relogin')"
         >
-          <LogIn :size="18" />
+          <LogIn :size="16" />
           <span class="whitespace-nowrap">재로그인</span>
         </button>
         <button
-          class="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover shadow-md shadow-primary/20 transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed"
+          class="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-none text-sm font-bold cursor-pointer bg-primary text-white hover:bg-primary-hover transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           :disabled="isLoading"
           @click="emit('refresh')"
         >
-          <Loader2 v-if="isLoading" :size="18" class="animate-spin" />
-          <RefreshCw v-else :size="18" />
+          <Loader2 v-if="isLoading" :size="16" class="animate-spin" />
+          <RefreshCw v-else :size="16" />
           <span class="whitespace-nowrap">새로고침</span>
         </button>
       </div>
@@ -55,21 +52,16 @@ const emit = defineEmits<{
     <!-- Empty State -->
     <div
       v-if="!isLoading && courses.length === 0"
-      class="flex-1 flex flex-col items-center justify-center text-text-3 py-20"
+      class="flex-1 flex flex-col items-center justify-center text-text-3 py-16"
     >
-      <div
-        class="w-24 h-24 rounded-3xl bg-surface-mute flex items-center justify-center mb-6 shadow-inner"
-      >
-        <BookOpen :size="40" class="text-text-3 opacity-50" />
-      </div>
-      <p class="text-xl font-bold text-text-2">수강 중인 과목이 없습니다.</p>
-      <p class="text-sm mt-2 font-medium opacity-70">
+      <p class="text-lg font-bold text-text-2">수강 중인 과목이 없습니다.</p>
+      <p class="text-sm mt-1.5 font-medium opacity-70">
         LMS에 과목이 정상적으로 등록되어 있는지 확인해주세요.
       </p>
     </div>
 
-    <!-- Course Grid -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-12">
+    <!-- Course List -->
+    <div v-else class="flex flex-col gap-2 pb-8">
       <CourseCard
         v-for="course in courses"
         :key="course.id"
