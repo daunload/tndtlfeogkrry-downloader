@@ -58,19 +58,21 @@
 ## 5. 텍스트 변환 플로우 (단일)
 
 ```
-사용자 → [변환 버튼 클릭]
-  → IPC: transcribe-audio(filePath) (ipc/transcribe.ts)
+사용자 → [변환 버튼 클릭] (File API 체크박스로 전송 방식 선택)
+  → IPC: transcribe-audio(filePath, withSummary, useFileApi) (ipc/transcribe.ts)
   → Main: loadGeminiApiKey() (services/gemini.ts) → API 키 확인
   → Main: 분할 파일 감지 (_partN.mp3 패턴)
     ├─ 분할 파일 있음 → 모든 파트 순서대로 변환
     └─ 단일 파일 → 해당 파일만 변환
   → 각 파트:
-    → MP3 → base64 인코딩
+    → [inlineData 모드] MP3 → base64 인코딩 → 요청 본문에 포함
+    → [File API 모드] uploadAndWaitForActive() → fileUri 참조로 요청
     → transcribeWithRetry() → Gemini API 호출 (한국어 트랜스크립션)
-    → transcribe-progress 이벤트 전송
+    → transcribe-progress 이벤트 전송 (uploading → transcribing)
     → 429 에러 시 지수 백오프 재시도
+    → [File API 모드] 변환 완료 후 업로드된 파일 자동 삭제
   → 텍스트 병합 → {baseName}.txt 저장
-  → Renderer: 상태 업데이트
+  → Renderer: 하단 토스트에 단계별 상태 실시간 표시
 ```
 
 ## 6. 다운로드 + 변환 통합 플로우
@@ -128,7 +130,7 @@ interface VideoRef {
 | `SPLIT_THRESHOLD_BYTES`         | 19MB               | MP3 분할 기준     |
 | `MAX_CONCURRENT_DOWNLOADS`      | 3                  | 동시 다운로드 수  |
 | `MAX_CONCURRENT_TRANSCRIPTIONS` | 2                  | 동시 변환 수      |
-| `GEMINI_MODEL`                  | `gemini-2.0-flash` | STT 모델명        |
+| `DEFAULT_GEMINI_MODEL`          | `gemini-2.5-flash` | STT 기본 모델명   |
 | `GEMINI_MAX_RETRIES`            | 3                  | API 재시도 횟수   |
 | `DOWNLOAD_TIMEOUT_MS`           | 300,000            | 다운로드 타임아웃 |
 

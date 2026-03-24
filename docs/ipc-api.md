@@ -131,7 +131,9 @@ Gemini API 키 존재 여부를 확인한다 (키 값은 반환하지 않음).
 
 ```typescript
 // 요청:
-filePath: string  // MP3 파일 경로
+filePath: string          // MP3 파일 경로
+withSummary?: boolean     // 요약본 생성 여부 (기본값: true)
+useFileApi?: boolean      // Gemini File API 사용 여부 (기본값: false)
 
 // 응답:
 {
@@ -149,7 +151,9 @@ filePath: string  // MP3 파일 경로
 
 ```typescript
 // 요청:
-dirPath: string  // MP3 파일이 있는 폴더 경로
+dirPath: string           // MP3 파일이 있는 폴더 경로
+withSummary?: boolean     // 요약본 생성 여부 (기본값: true)
+useFileApi?: boolean      // Gemini File API 사용 여부 (기본값: false)
 
 // 응답:
 {
@@ -168,7 +172,10 @@ dirPath: string  // MP3 파일이 있는 폴더 경로
 
 ```typescript
 // 요청:
-videos: VideoRef[]  // shared/types.ts
+videos: VideoRef[]        // shared/types.ts
+folderPath?: string       // 다운로드 폴더 경로 (없으면 다이얼로그 표시)
+withSummary?: boolean     // 요약본 생성 여부 (기본값: true)
+useFileApi?: boolean      // Gemini File API 사용 여부 (기본값: false)
 
 // 응답:
 {
@@ -245,7 +252,9 @@ filePath: string;
 {
   fileName: string
   percent: number          // 0~100
-  status: 'transcribing'   // 변환 중
+  status: 'converting'    // MP4→MP3 변환 중
+        | 'uploading'      // File API 업로드 중
+        | 'transcribing'   // 텍스트 변환 중
         | 'merging'        // 분할 파일 텍스트 병합 중
         | 'done'           // 완료
         | 'error'          // 오류 발생

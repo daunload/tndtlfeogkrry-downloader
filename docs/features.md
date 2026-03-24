@@ -81,26 +81,40 @@
 - **로드**: `loadGeminiApiKey()` — `safeStorage.decryptString()`
 - **삭제**: `deleteGeminiApiKey()` — 파일 내용을 빈 문자열로 덮어쓰기
 
-### 6-2. 단일 파일 변환 (`ipc/transcribe.ts`)
+### 6-2. 전송 방식 선택
 
-- MP3 파일을 base64 인코딩하여 `GEMINI_MODEL` API에 전송
+UI에서 **File API** 체크박스로 두 가지 전송 방식을 선택할 수 있다:
+
+| 방식 | 설명 | 장점 |
+|---|---|---|
+| **inlineData** (기본) | MP3를 base64 인코딩하여 요청 본문에 포함 | 추가 네트워크 호출 없음 |
+| **File API** | `GoogleAIFileManager`로 파일 업로드 후 URI 참조 | 토큰 절약, 2GB까지 지원 |
+
+File API 사용 시:
+- `uploadAndWaitForActive()`로 파일 업로드 → ACTIVE 상태 대기
+- `fileData: { fileUri, mimeType }`로 API 요청
+- 변환 완료 후 `deleteUploadedFile()`로 업로드된 파일 자동 정리 (실패 시 48시간 후 자동 만료)
+
+### 6-3. 단일 파일 변환 (`ipc/transcribe.ts`)
+
+- 선택된 전송 방식(inlineData/File API)으로 Gemini API에 전송
 - 프롬프트: 한국어 텍스트로 받아쓰기, 전문 용어 정확 표기, 문단 구분
 - 분할 파일 자동 감지: `_partN.mp3` 패턴으로 같은 원본의 분할 파일을 모두 찾아 순서대로 변환 후 병합
 - 결과: 같은 디렉토리에 `{baseName}.txt` 파일 생성
 
-### 6-3. 일괄 변환 (`ipc/transcribe.ts`)
+### 6-4. 일괄 변환 (`ipc/transcribe.ts`)
 
 - `groupMp3Files()` (`services/gemini.ts`)로 지정 폴더의 모든 MP3 파일 그룹핑
 - 분할 파일은 같은 그룹으로 묶음
 - 최대 `MAX_CONCURRENT_TRANSCRIPTIONS`(2)개 동시 변환 (worker pool 패턴)
 
-### 6-4. 다운로드 + 변환 통합 (`ipc/transcribe.ts`)
+### 6-5. 다운로드 + 변환 통합 (`ipc/transcribe.ts`)
 
 - 1단계: 전체 영상 MP3 다운로드 (최대 `MAX_CONCURRENT_DOWNLOADS`개 동시)
 - 2단계: 다운로드된 MP3 그룹별 텍스트 변환 (최대 `MAX_CONCURRENT_TRANSCRIPTIONS`개 동시)
 - 모든 다운로드 실패 시 2단계 스킵
 
-### 6-5. 에러 처리 (`services/gemini.ts`)
+### 6-6. 에러 처리 (`services/gemini.ts`)
 
 - **Rate limit (429)**: `transcribeWithRetry()`로 지수 백오프 재시도 (2초 → 4초 → 8초, 최대 `GEMINI_MAX_RETRIES`회)
 - **인증 오류 (401/403)**: API 키 재설정 안내
@@ -113,9 +127,10 @@
 | **테마**        | 다크/라이트 모드 토글, `localStorage`에 저장, `document.documentElement`에 `dark` 클래스 |
 | **반응형**      | 모바일/태블릿/데스크톱 레이아웃                                                          |
 | **사이드바**    | 강좌 목록, Gemini API 설정, 테마 토글, 로그인 상태/버튼                                  |
-| **포맷 선택**   | MP4/MP3 드롭다운 토글 (`FormatToggle.vue`)                                               |
+| **포맷 선택**   | 드롭다운으로 MP4/MP3/텍스트 변환 선택                                                    |
+| **File API**    | 체크박스로 Gemini File API 전송 방식 토글                                                |
 | **진행률**      | 원형 프로그레스바 + 퍼센트 표시 (`ProgressBar.vue`)                                      |
-| **상태 메시지** | 하단 중앙 플로팅 메시지 (`StatusMessage.vue`)                                            |
+| **상태 메시지** | 하단 중앙 플로팅 토스트 — 변환 단계별 실시간 표시 (`StatusMessage.vue`)                   |
 | **영상 카드**   | 썸네일(호버 확대), 메타데이터, 다운로드/변환 버튼, 상태 배지                             |
 
 ## 8. 자동 업데이트

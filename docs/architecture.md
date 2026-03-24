@@ -6,7 +6,7 @@
 - **프론트엔드**: Vue 3 + TypeScript + Tailwind CSS v4
 - **빌드**: electron-vite + Vite 7
 - **미디어 처리**: FFmpeg (fluent-ffmpeg + @ffmpeg-installer/ffmpeg)
-- **AI**: Google Generative AI (@google/generative-ai) - Gemini 2.0 Flash
+- **AI**: Google Generative AI (@google/generative-ai + /server) — Gemini API + File API
 - **XML 파싱**: fast-xml-parser
 - **자동 업데이트**: electron-updater + electron-log
 - **아이콘**: lucide-vue-next
@@ -24,7 +24,7 @@ src/
 │   ├── index.ts                   # 앱 라이프사이클 (~40줄)
 │   ├── window.ts                  # BrowserWindow 관리 (createWindow, LMS 싱글턴)
 │   ├── services/
-│   │   ├── gemini.ts              # API 키 관리 + 텍스트 변환 (transcribeWithRetry)
+│   │   ├── gemini.ts              # API 키 관리 + 텍스트 변환 (inlineData/File API 분기)
 │   │   ├── media.ts               # FFmpeg: MP3 변환, 오디오 분할
 │   │   ├── lms.ts                 # XML 파싱으로 미디어 URL 추출
 │   │   └── download.ts            # HTTPS 다운로드 + 단일 비디오 다운로드
@@ -57,9 +57,8 @@ src/
         │   ├── CourseList.vue     # 수강 강좌 그리드
         │   └── CourseCard.vue     # 개별 강좌 카드
         ├── videos/
-        │   ├── VideoList.vue      # 강의 영상 목록
-        │   ├── VideoCard.vue      # 영상 카드 (썸네일, 다운로드, 변환)
-        │   ├── FormatToggle.vue   # MP4/MP3 포맷 전환
+        │   ├── VideoList.vue      # 강의 영상 목록 (File API 토글 포함)
+        │   ├── VideoCard.vue      # 영상 카드 (썸네일, 다운로드, 변환 상태)
         │   └── ProgressBar.vue    # 원형 진행률 표시기
         └── settings/
             └── ApiKeySettings.vue # Gemini API 키 관리 모달
