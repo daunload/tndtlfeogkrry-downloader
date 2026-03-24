@@ -68,12 +68,16 @@ export function registerUpdateHandlers(): void {
     try {
       const result = await autoUpdater.checkForUpdates();
       if (result && result.updateInfo) {
-        return {
-          hasUpdate: true,
-          currentVersion: app.getVersion(),
-          latestVersion: result.updateInfo.version,
-          downloadUrl: `https://github.com/${GITHUB_REPO}/releases/latest`
-        };
+        const current = app.getVersion();
+        const latest = result.updateInfo.version;
+        if (latest !== current) {
+          return {
+            hasUpdate: true,
+            currentVersion: current,
+            latestVersion: latest,
+            downloadUrl: `https://github.com/${GITHUB_REPO}/releases/latest`
+          };
+        }
       }
     } catch {
       // 업데이트 확인 실패 시 현재 버전 정보만 반환
