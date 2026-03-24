@@ -51,7 +51,7 @@ export async function transcribeOne(mp3Path: string, apiKey: string): Promise<st
   return result.response.text();
 }
 
-export async function summarizeText(text: string, apiKey: string): Promise<string> {
+async function summarizeText(text: string, apiKey: string): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
@@ -74,19 +74,44 @@ export async function summarizeText(text: string, apiKey: string): Promise<strin
 
   return result.response.text();
 }
-/** 429 Rate Limit 시 지수 백오프(2s→4s→8s)로 재시도. 그 외 에러는 즉시 throw. */
-export async function transcribeWithRetry(
-  mp3Path: string,
-  apiKey: string,
-  maxRetries: number = GEMINI_MAX_RETRIES
-): Promise<string> {
+/**
+ * 에러 메시지에서 retryDelay 값을 추출한다.
+ * Gemini API가 "Please retry in XX.XXs" 형태로 권장 대기 시간을 알려준다.
+ */
+function parseRetryDelay(message: string): number | null {
+  const match = message.match(/retry in (\d+(?:\.\d+)?)s/i);
+  return match ? Math.ceil(parseFloat(match[1]) * 1000) : null;
+}
+
+/**
+ * 할당량 완전 소진(quota exceeded) 여부를 판별한다.
+ * 일시적 rate limit과 달리 재시도해도 해결되지 않는다.
+ */
+function isQuotaExhausted(message: string): boolean {
+  return (
+    message.includes('exceeded your current quota') ||
+    (message.includes('Quota exceeded') && message.includes('limit: 0'))
+  );
+}
+
+/** 429 Rate Limit 시 지수 백오프로 재시도. 할당량 소진은 즉시 실패. */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries: number = GEMINI_MAX_RETRIES): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      return await transcribeOne(mp3Path, apiKey);
+      return await fn();
     } catch (err) {
       const message = (err as Error).message || '';
+
+      if (isQuotaExhausted(message)) {
+        throw new Error(
+          'Gemini API 무료 할당량이 소진되었습니다. Google AI Studio에서 요금제를 확인하거나, 할당량이 초기화될 때까지 기다려주세요.'
+        );
+      }
+
       if (message.includes('429') && attempt < maxRetries - 1) {
-        const delay = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s
+        const serverDelay = parseRetryDelay(message);
+        const backoffDelay = Math.pow(2, attempt) * 2000;
+        const delay = serverDelay ?? backoffDelay;
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -94,6 +119,22 @@ export async function transcribeWithRetry(
     }
   }
   throw new Error('최대 재시도 횟수 초과');
+}
+
+export function transcribeWithRetry(
+  mp3Path: string,
+  apiKey: string,
+  maxRetries: number = GEMINI_MAX_RETRIES
+): Promise<string> {
+  return withRetry(() => transcribeOne(mp3Path, apiKey), maxRetries);
+}
+
+export function summarizeWithRetry(
+  text: string,
+  apiKey: string,
+  maxRetries: number = GEMINI_MAX_RETRIES
+): Promise<string> {
+  return withRetry(() => summarizeText(text, apiKey), maxRetries);
 }
 
 /**

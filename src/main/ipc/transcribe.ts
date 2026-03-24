@@ -10,7 +10,7 @@ import {
   MAX_CONCURRENT_TRANSCRIPTIONS,
   toSafeFileName
 } from '../../shared/config';
-import { loadGeminiApiKey, summarizeText } from '../services/gemini';
+import { loadGeminiApiKey, summarizeWithRetry } from '../services/gemini';
 import { transcribeWithRetry, groupMp3Files } from '../services/gemini';
 import { downloadOne } from '../services/download';
 import { convertToMp3, splitMp3 } from '../services/media';
@@ -91,7 +91,7 @@ export function registerTranscribeHandlers(): void {
       });
 
       const mergedText = texts.join('\n\n');
-      const summarizeTextResult = await summarizeText(mergedText, apiKey);
+      const summarizeTextResult = await summarizeWithRetry(mergedText, apiKey);
 
       const txtPath = join(dir, `${baseName}.txt`);
       writeFileSync(txtPath, mergedText, 'utf-8');
@@ -123,6 +123,15 @@ export function registerTranscribeHandlers(): void {
 
       if (message.includes('401') || message.includes('403')) {
         return { success: false, error: 'API 키가 유효하지 않습니다. 설정에서 다시 입력해주세요.' };
+      }
+      if (message.includes('할당량이 소진')) {
+        return { success: false, error: message };
+      }
+      if (message.includes('429')) {
+        return {
+          success: false,
+          error: 'Gemini API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.'
+        };
       }
       return { success: false, error: message };
     }
@@ -164,7 +173,7 @@ export function registerTranscribeHandlers(): void {
           }
 
           const mergedText = texts.join('\n\n');
-          const summarizeTextResult = await summarizeText(mergedText, key);
+          const summarizeTextResult = await summarizeWithRetry(mergedText, key);
 
           const txtPath = join(dirPath, `${baseName}.txt`);
           writeFileSync(txtPath, mergedText, 'utf-8');
@@ -291,12 +300,12 @@ export function registerTranscribeHandlers(): void {
             }
 
             const mergedText = texts.join('\n\n');
-            const summarizeTextResult = await summarizeText(mergedText, key);
+            const summarizeTextResult = await summarizeWithRetry(mergedText, key);
 
             const txtPath = join(folder, `${baseName}.txt`);
             writeFileSync(txtPath, mergedText, 'utf-8');
 
-            const summarizeTextPath = join(txtPath, `${baseName}_요약본.md`);
+            const summarizeTextPath = join(folder, `${baseName}_요약본.md`);
             writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
 
             event.sender.send(IPC_EVENT.TRANSCRIBE_PROGRESS, {
