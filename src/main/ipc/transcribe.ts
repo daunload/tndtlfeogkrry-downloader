@@ -10,7 +10,7 @@ import {
   MAX_CONCURRENT_TRANSCRIPTIONS,
   toSafeFileName
 } from '../../shared/config';
-import { loadGeminiApiKey } from '../services/gemini';
+import { loadGeminiApiKey, summarizeText } from '../services/gemini';
 import { transcribeWithRetry, groupMp3Files } from '../services/gemini';
 import { downloadOne } from '../services/download';
 import { convertToMp3, splitMp3 } from '../services/media';
@@ -91,8 +91,13 @@ export function registerTranscribeHandlers(): void {
       });
 
       const mergedText = texts.join('\n\n');
+      const summarizeTextResult = await summarizeText(mergedText, apiKey);
+
       const txtPath = join(dir, `${baseName}.txt`);
       writeFileSync(txtPath, mergedText, 'utf-8');
+
+      const summarizeTextPath = join(dir, `${baseName}_요약본.md`);
+      writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
 
       // mp4에서 변환된 임시 mp3 파일 정리
       if (convertedFromMp4) {
@@ -159,8 +164,13 @@ export function registerTranscribeHandlers(): void {
           }
 
           const mergedText = texts.join('\n\n');
+          const summarizeTextResult = await summarizeText(mergedText, key);
+
           const txtPath = join(dirPath, `${baseName}.txt`);
           writeFileSync(txtPath, mergedText, 'utf-8');
+
+          const summarizeTextPath = join(dirPath, `${baseName}_요약본.md`);
+          writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
 
           event.sender.send(IPC_EVENT.TRANSCRIBE_PROGRESS, {
             fileName: `${baseName}.mp3`,
@@ -281,8 +291,13 @@ export function registerTranscribeHandlers(): void {
             }
 
             const mergedText = texts.join('\n\n');
+            const summarizeTextResult = await summarizeText(mergedText, key);
+
             const txtPath = join(folder, `${baseName}.txt`);
             writeFileSync(txtPath, mergedText, 'utf-8');
+
+            const summarizeTextPath = join(txtPath, `${baseName}_요약본.md`);
+            writeFileSync(summarizeTextPath, summarizeTextResult, 'utf-8');
 
             event.sender.send(IPC_EVENT.TRANSCRIBE_PROGRESS, {
               fileName: `${baseName}.mp3`,

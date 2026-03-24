@@ -51,6 +51,29 @@ export async function transcribeOne(mp3Path: string, apiKey: string): Promise<st
   return result.response.text();
 }
 
+export async function summarizeText(text: string, apiKey: string): Promise<string> {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+  const prompt = `아래 강의 원문을 시험 대비용으로 요약하세요.
+요구사항:
+1) 핵심 개념 정의 3~5개
+2) 개념 간 관계를 3줄 이내 설명
+3) 기억해야 할 포인트 5개 bullet
+4) 마지막에 한 줄 결론
+
+모든 내용은 원문 근거 기반으로 작성하고, 없는 내용은 추가하지 마세요.
+`;
+
+  const result = await model.generateContent([
+    {
+      text: text
+    },
+    { text: prompt }
+  ]);
+
+  return result.response.text();
+}
 /** 429 Rate Limit 시 지수 백오프(2s→4s→8s)로 재시도. 그 외 에러는 즉시 throw. */
 export async function transcribeWithRetry(
   mp3Path: string,
