@@ -28,6 +28,7 @@ export interface VideoItem {
   thumbnailUrl: string;
   weekPosition: number; // 주차 (모듈 내 위치)
   available: boolean; // content_id가 유효한지 (not_open 등은 false)
+  isCompleted: boolean; // 영상 수강 여부
 }
 
 export interface WikiPageItem {

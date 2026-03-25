@@ -128,6 +128,7 @@ export function registerCoursesHandlers(): void {
         thumbnailUrl: string;
         weekPosition: number;
         available: boolean;
+        isCompleted: boolean;
       }
 
       interface WikiPageItem {
@@ -147,7 +148,7 @@ export function registerCoursesHandlers(): void {
         if (!mod.module_items) continue;
         for (const item of mod.module_items) {
           const itemType = item.content_data?.item_content_data?.content_type || item.content_type;
-
+          console.log('item', item);
           // 영상 콘텐츠(everlec/movie/video/mp4)
           if (VIDEO_TYPES.includes(itemType)) {
             const data = item.content_data?.item_content_data;
@@ -160,7 +161,8 @@ export function registerCoursesHandlers(): void {
                 fileSize: data.total_file_size || 0,
                 thumbnailUrl: data.thumbnail_url || '',
                 weekPosition: item.content_data.week_position || 0,
-                available
+                available,
+                isCompleted: item.completed || !item.content_data.use_attendance
               });
             }
             continue;

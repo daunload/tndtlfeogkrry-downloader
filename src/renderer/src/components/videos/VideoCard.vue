@@ -131,6 +131,13 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
           <HardDrive :size="12" class="opacity-70" />
           {{ formatSize(video.fileSize) }}
         </span>
+        <span
+          v-if="video.isCompleted === false"
+          class="px-2 py-0.5 rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400 font-bold"
+          title="아직 시청하지 않은 영상"
+        >
+          미시청
+        </span>
       </div>
     </div>
 
