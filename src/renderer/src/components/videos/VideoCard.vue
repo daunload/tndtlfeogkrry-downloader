@@ -132,7 +132,14 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
           {{ formatSize(video.fileSize) }}
         </span>
         <span
-          v-if="video.isCompleted === false"
+          v-if="video.isAbsent"
+          class="px-2 py-0.5 rounded-lg bg-red-500/12 text-red-600 dark:text-red-400 font-bold"
+          title="마감일이 지났지만 수강 완료되지 않은 영상"
+        >
+          결석
+        </span>
+        <span
+          v-else-if="video.isCompleted === false"
           class="px-2 py-0.5 rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400 font-bold"
           title="아직 시청하지 않은 영상"
         >

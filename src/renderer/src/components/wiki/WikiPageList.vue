@@ -126,7 +126,9 @@ const emit = defineEmits<{
                 class="flex flex-col items-center justify-center gap-1 w-[88px]"
               >
                 <CheckCircle2 :size="22" class="text-success drop-shadow-sm" />
-                <span class="text-[10px] font-black uppercase tracking-wide text-success">Done</span>
+                <span class="text-[10px] font-black uppercase tracking-wide text-success"
+                  >Done</span
+                >
               </div>
 
               <button

@@ -129,6 +129,7 @@ export function registerCoursesHandlers(): void {
         weekPosition: number;
         available: boolean;
         isCompleted: boolean;
+        isAbsent: boolean;
       }
 
       interface WikiPageItem {
@@ -154,6 +155,16 @@ export function registerCoursesHandlers(): void {
             const data = item.content_data?.item_content_data;
             if (data.content_id) {
               const available = data.content_id !== 'not_open';
+
+              const dueAt = item.content_data?.due_at;
+              const dueAtTimestamp = dueAt ? Date.parse(dueAt) : Number.NaN;
+              const requiresAttendance = item.content_data?.use_attendance !== false;
+              const isAbsent =
+                requiresAttendance &&
+                !item.completed &&
+                !Number.isNaN(dueAtTimestamp) &&
+                dueAtTimestamp < Date.now();
+
               videos.push({
                 title: item.title,
                 contentId: data.content_id,
@@ -162,7 +173,8 @@ export function registerCoursesHandlers(): void {
                 thumbnailUrl: data.thumbnail_url || '',
                 weekPosition: item.content_data.week_position || 0,
                 available,
-                isCompleted: item.completed || !item.content_data.use_attendance
+                isCompleted: item.completed || !item.content_data.use_attendance,
+                isAbsent
               });
             }
             continue;

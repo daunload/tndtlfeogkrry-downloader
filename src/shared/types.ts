@@ -29,6 +29,7 @@ export interface VideoItem {
   weekPosition: number; // 주차 (모듈 내 위치)
   available: boolean; // content_id가 유효한지 (not_open 등은 false)
   isCompleted: boolean; // 영상 수강 여부
+  isAbsent: boolean; // 마감 지났고 미수강인지 여부
 }
 
 export interface WikiPageItem {
