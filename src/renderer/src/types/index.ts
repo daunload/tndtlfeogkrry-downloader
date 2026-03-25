@@ -3,6 +3,7 @@ export type {
   VideoItem,
   WikiPageItem,
   WikiPageFileItem,
+  MarkdownFileItem,
   WikiFileHistoryRecord,
   WikiFileHistoryRecordWithStatus,
   VideoRef,

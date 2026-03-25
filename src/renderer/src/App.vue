@@ -14,6 +14,7 @@ import VideoList from './components/videos/VideoList.vue';
 import WikiPageList from './components/wiki/WikiPageList.vue';
 import ApiKeySettings from './components/settings/ApiKeySettings.vue';
 import LibraryView from './components/library/LibraryView.vue';
+import MarkdownViewerView from './components/markdown/MarkdownViewerView.vue';
 
 const {
   isLoggedIn,
@@ -64,6 +65,7 @@ const {
 
 const showSettings = ref(false);
 const showLibrary = ref(false);
+const showMarkdown = ref(false);
 const contentTab = ref<'video' | 'wiki'>('video');
 const toastMessage = ref('');
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -78,9 +80,11 @@ const {
   wikiMessage
 } = useWikiFiles();
 
-const activeView = computed<'courses' | 'library'>(() =>
-  showLibrary.value ? 'library' : 'courses'
-);
+const activeView = computed<'courses' | 'library' | 'markdown'>(() => {
+  if (showLibrary.value) return 'library';
+  if (showMarkdown.value) return 'markdown';
+  return 'courses';
+});
 
 onMounted(() => {
   checkApiKey();
@@ -132,10 +136,17 @@ async function openSettings(): Promise<void> {
 
 function openLibrary(): void {
   showLibrary.value = true;
+  showMarkdown.value = false;
+}
+
+function openMarkdown(): void {
+  showLibrary.value = false;
+  showMarkdown.value = true;
 }
 
 function openCourses(): void {
   showLibrary.value = false;
+  showMarkdown.value = false;
   contentTab.value = 'video';
   selectedCourseId.value = null;
 }
@@ -269,6 +280,7 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
       @login="login"
       @open-settings="openSettings"
       @open-library="openLibrary"
+      @open-markdown="openMarkdown"
       @open-courses="openCourses"
     />
 
@@ -277,11 +289,13 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
         class="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 py-6 sm:py-10 w-full max-w-6xl mx-auto"
       >
         <Transition name="fade" mode="out-in">
-          <LoginScreen v-if="!isLoggedIn" @login="login" />
+          <LoginScreen v-if="!isLoggedIn && !showMarkdown" @login="login" />
 
           <div v-else class="h-full">
             <Transition name="slide-fade" mode="out-in">
               <LibraryView v-if="showLibrary" @back="openCourses" />
+
+              <MarkdownViewerView v-else-if="showMarkdown" />
 
               <CourseList
                 v-else-if="!selectedCourseId"

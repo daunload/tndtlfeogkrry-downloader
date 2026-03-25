@@ -11,7 +11,8 @@ import type {
   TranscribeProgressData,
   GeminiModelId,
   DownloadRecord,
-  DownloadRecordWithStatus
+  DownloadRecordWithStatus,
+  MarkdownFileItem
 } from '../shared/types';
 
 interface DownloadApi {
@@ -88,6 +89,13 @@ interface DownloadApi {
   openFile: (filePath: string) => Promise<{ success: boolean }>;
   selectFolder: () => Promise<{ success: boolean; folderPath?: string }>;
   selectDownloadFolder: () => Promise<{ success: boolean; folderPath?: string }>;
+  selectMarkdownFolder: () => Promise<{ success: boolean; folderPath?: string }>;
+  listMarkdownFiles: (
+    folderPath: string
+  ) => Promise<{ success: boolean; files?: MarkdownFileItem[]; error?: string }>;
+  readMarkdownFile: (
+    filePath: string
+  ) => Promise<{ success: boolean; content?: string; error?: string }>;
   downloadAndTranscribeAll: (
     videos: VideoRefWithMeta[],
     folderPath?: string,

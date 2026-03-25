@@ -45,6 +45,14 @@ export interface WikiPageFileItem {
   apiEndpoint?: string;
 }
 
+export interface MarkdownFileItem {
+  name: string;
+  filePath: string;
+  relativePath: string;
+  updatedAt: string;
+  size: number;
+}
+
 export interface WikiFileHistoryRecord {
   downloadUrl: string;
   title: string;

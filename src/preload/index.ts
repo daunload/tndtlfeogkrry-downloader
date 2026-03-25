@@ -13,7 +13,8 @@ import type {
   TranscribeProgressData,
   GeminiModelId,
   DownloadRecord,
-  DownloadRecordWithStatus
+  DownloadRecordWithStatus,
+  MarkdownFileItem
 } from '../shared/types';
 
 const api = {
@@ -123,6 +124,19 @@ const api = {
 
   selectDownloadFolder: (): Promise<{ success: boolean; folderPath?: string }> =>
     ipcRenderer.invoke(IPC.SELECT_DOWNLOAD_FOLDER),
+
+  selectMarkdownFolder: (): Promise<{ success: boolean; folderPath?: string }> =>
+    ipcRenderer.invoke(IPC.SELECT_MARKDOWN_FOLDER),
+
+  listMarkdownFiles: (
+    folderPath: string
+  ): Promise<{ success: boolean; files?: MarkdownFileItem[]; error?: string }> =>
+    ipcRenderer.invoke(IPC.LIST_MARKDOWN_FILES, folderPath),
+
+  readMarkdownFile: (
+    filePath: string
+  ): Promise<{ success: boolean; content?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC.READ_MARKDOWN_FILE, filePath),
 
   downloadAndTranscribeAll: (
     videos: VideoRefWithMeta[],
