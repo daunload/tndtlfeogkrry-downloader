@@ -125,7 +125,10 @@ interface DownloadApi {
     records?: WikiFileHistoryRecordWithStatus[];
   }>;
   addWikiFileHistory: (record: WikiFileHistoryRecord) => Promise<{ success: boolean }>;
-  updateWikiFileSummary: (downloadUrl: string, summaryPath: string) => Promise<{ success: boolean }>;
+  updateWikiFileSummary: (
+    downloadUrl: string,
+    summaryPath: string
+  ) => Promise<{ success: boolean }>;
 }
 
 declare global {

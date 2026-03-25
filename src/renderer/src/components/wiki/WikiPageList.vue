@@ -42,7 +42,9 @@ const emit = defineEmits<{
       >
         <ArrowLeft :size="24" />
       </button>
-      <h2 class="text-2xl font-black text-text-1 tracking-tight whitespace-nowrap">수업자료 리스트</h2>
+      <h2 class="text-2xl font-black text-text-1 tracking-tight whitespace-nowrap">
+        수업자료 리스트
+      </h2>
     </div>
 
     <div class="flex items-center gap-3 mb-6 px-1 min-w-0">
@@ -80,7 +82,9 @@ const emit = defineEmits<{
         <FileText :size="40" class="text-text-3 opacity-50" />
       </div>
       <p class="text-xl font-bold text-text-2">수업자료가 없습니다.</p>
-      <p class="text-sm mt-2 font-medium opacity-70">이 과목에 위키 페이지가 있는지 확인해주세요.</p>
+      <p class="text-sm mt-2 font-medium opacity-70">
+        이 과목에 위키 페이지가 있는지 확인해주세요.
+      </p>
     </div>
 
     <div v-else class="flex flex-col gap-4 pb-12">
