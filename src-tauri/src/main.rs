@@ -1,3 +1,4 @@
+mod auth;
 mod config;
 mod state;
 
@@ -9,6 +10,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState::new())
+        .invoke_handler(tauri::generate_handler![auth::open_login])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
