@@ -1,6 +1,8 @@
 mod auth;
 mod config;
 mod download;
+mod gemini;
+mod history;
 mod lms;
 mod media;
 mod state;
