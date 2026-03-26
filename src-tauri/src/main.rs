@@ -1,5 +1,6 @@
 mod auth;
 mod config;
+mod lms;
 mod state;
 
 use state::AppState;
