@@ -1,6 +1,8 @@
 mod auth;
 mod config;
+mod download;
 mod lms;
+mod media;
 mod state;
 
 use state::AppState;
