@@ -118,12 +118,11 @@ pub async fn download_one(
     save_path: &str,
     format: &str, // "mp4" or "m4a"
 ) -> Result<String, String> {
-    let cookies = state.get_cookies().await;
-    if cookies.is_empty() {
+    if state.lms_window.lock().await.is_none() {
         return Err("로그인이 필요합니다.".into());
     }
 
-    // Fetch content XML
+    // Fetch content XML (content.php는 공개 API, 쿠키 없이도 접근 가능)
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
@@ -137,7 +136,6 @@ pub async fn download_one(
     let xml_resp = state
         .http_client
         .get(&xml_url)
-        .header("Cookie", &cookies)
         .send()
         .await
         .map_err(|e| format!("XML 요청 실패: {}", e))?;

@@ -7,6 +7,7 @@
     "frontendDist": "../ui"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "SSU LMS Downloader",
@@ -18,12 +19,10 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; connect-src https://canvas.ssu.ac.kr https://commons.ssu.ac.kr https://generativelanguage.googleapis.com; img-src 'self' https://commons.ssu.ac.kr https://canvas.ssu.ac.kr; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; script-src 'self'; connect-src https://canvas.ssu.ac.kr https://commons.ssu.ac.kr https://generativelanguage.googleapis.com tauri-lms:; img-src 'self' https://commons.ssu.ac.kr https://canvas.ssu.ac.kr; style-src 'self' 'unsafe-inline'"
     }
   },
   "plugins": {
-    "store": {},
-    "dialog": {},
     "shell": {
       "open": true
     }

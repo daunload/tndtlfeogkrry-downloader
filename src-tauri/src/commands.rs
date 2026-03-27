@@ -405,13 +405,11 @@ pub async fn download_wiki_file(
     meta: Option<DownloadMeta>,
 ) -> ApiResult<String> {
     let state = app.state::<AppState>();
-    let cookies = state.get_cookies().await;
-    if cookies.is_empty() {
+    if state.lms_window.lock().await.is_none() {
         return ApiResult::err("로그인이 필요합니다.".into());
     }
 
     let safe_name = config::to_safe_file_name(&title, 0);
-    // If title doesn't end with .pdf, add it
     let file_name = if safe_name.to_lowercase().ends_with(".pdf") {
         safe_name
     } else {
@@ -426,7 +424,6 @@ pub async fn download_wiki_file(
     let resp = state
         .http_client
         .get(&download_url)
-        .header("Cookie", &cookies)
         .send()
         .await
         .map_err(|e| format!("다운로드 요청 실패: {}", e));

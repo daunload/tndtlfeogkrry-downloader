@@ -90,7 +90,12 @@ export async function renderVideoList(container, course, onBack) {
       }
     });
 
-    if (!modules || modules.length === 0) {
+    // Backend returns [VideoItem[], WikiPageItem[]] tuple
+    const [videos, wikis] = Array.isArray(modules) && Array.isArray(modules[0])
+      ? modules
+      : [modules, []];
+
+    if ((!videos || videos.length === 0) && (!wikis || wikis.length === 0)) {
       render(contentArea, el('div', { className: 'empty-state' }, '모듈이 없습니다.'));
       return;
     }
@@ -98,36 +103,36 @@ export async function renderVideoList(container, course, onBack) {
     const allVideos = [];
     const elements = [];
 
-    for (const mod of modules) {
-      const videos = (mod.items || []).filter(
-        (item) => item.type === 'video' || item.content_type === 'video' || item.contentId,
-      );
-      const wikiPages = (mod.items || []).filter(
-        (item) => item.type === 'wiki' || item.content_type === 'wiki',
-      );
+    // Group videos by weekPosition
+    const weekMap = new Map();
+    for (const video of (videos || [])) {
+      const week = video.weekPosition ?? 0;
+      if (!weekMap.has(week)) weekMap.set(week, []);
+      weekMap.get(week).push(video);
+    }
 
-      if (videos.length === 0 && wikiPages.length === 0) continue;
-
+    for (const [week, weekVideos] of [...weekMap.entries()].sort((a, b) => a[0] - b[0])) {
       const moduleEl = el('div', { className: 'module-group' },
-        el('h3', {}, mod.name || mod.title || '(이름 없음)'),
+        el('h3', {}, `${week}주차`),
       );
-
-      if (videos.length > 0) {
-        const videoListEl = el('div', { className: 'video-list' });
-        for (const video of videos) {
-          allVideos.push(video);
-          videoListEl.appendChild(createVideoItem(video, () => selectedFormat));
-        }
-        moduleEl.appendChild(videoListEl);
+      const videoListEl = el('div', { className: 'video-list' });
+      for (const video of weekVideos) {
+        allVideos.push(video);
+        videoListEl.appendChild(createVideoItem(video, () => selectedFormat));
       }
-
-      if (wikiPages.length > 0) {
-        const wikiEl = el('div', { className: 'wiki-section' });
-        renderWikiList(wikiEl, wikiPages);
-        moduleEl.appendChild(wikiEl);
-      }
-
+      moduleEl.appendChild(videoListEl);
       elements.push(moduleEl);
+    }
+
+    // Wiki pages section
+    if (wikis && wikis.length > 0) {
+      const wikiGroupEl = el('div', { className: 'module-group' },
+        el('h3', {}, '수업 자료'),
+      );
+      const wikiEl = el('div', { className: 'wiki-section' });
+      renderWikiList(wikiEl, wikis);
+      wikiGroupEl.appendChild(wikiEl);
+      elements.push(wikiGroupEl);
     }
 
     if (elements.length === 0) {

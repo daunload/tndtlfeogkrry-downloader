@@ -2,6 +2,7 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::eval_lms;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -296,40 +297,38 @@ fn extract_wiki_files_from_html(html: &str) -> Vec<WikiPageFileItem> {
 
 const VIDEO_TYPES: &[&str] = &["everlec", "movie", "video", "mp4"];
 
-/// Fetch dashboard course cards from Canvas API.
+/// Fetch dashboard course cards via LMS WebviewWindow (inherits session cookies).
 pub async fn fetch_courses_api(state: &AppState) -> Result<Vec<CourseItem>, String> {
-    let cookies = state.get_cookies().await;
-    if cookies.is_empty() {
-        return Err("로그인이 필요합니다. 다시 로그인해주세요.".into());
-    }
+    let js = r#"
+(function() {
+    fetch('/api/v1/dashboard/dashboard_cards', {credentials: 'include'})
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+        })
+        .then(function(text) {
+            var data = JSON.parse(text.replace(/^while\(1\);/, ''));
+            __sendToRust({type: 'courses', data: data});
+        })
+        .catch(function(e) {
+            __sendToRust({type: 'courses', error: e.message});
+        });
+})();
+"#;
 
-    let resp = state
-        .http_client
-        .get("https://canvas.ssu.ac.kr/api/v1/dashboard/dashboard_cards")
-        .header("Cookie", &cookies)
-        .send()
-        .await
-        .map_err(|e| format!("API 요청 실패: {}", e))?;
+    let result = eval_lms(state, "courses", js).await?;
 
-    if !resp.status().is_success() {
-        let status = resp.status().as_u16();
-        if status == 401 || status == 403 {
+    if let Some(err) = result.get("error").and_then(|v| v.as_str()) {
+        if err.contains("401") || err.contains("403") {
             return Err("로그인이 만료되었습니다. 다시 로그인해주세요.".into());
         }
-        return Err(format!("HTTP {}", status));
+        return Err(err.to_string());
     }
 
-    let text = resp.text().await.map_err(|e| format!("응답 읽기 실패: {}", e))?;
-
-    // Strip "while(1);" CSRF prefix
-    let json_str = if let Some(stripped) = text.strip_prefix("while(1);") {
-        stripped
-    } else {
-        &text
-    };
-
-    let cards: Vec<serde_json::Value> =
-        serde_json::from_str(json_str).map_err(|e| format!("JSON 파싱 실패: {}", e))?;
+    let cards = result
+        .get("data")
+        .and_then(|v| v.as_array())
+        .ok_or("courses 응답 형식 오류")?;
 
     let courses = cards
         .iter()
@@ -352,56 +351,86 @@ pub async fn fetch_courses_api(state: &AppState) -> Result<Vec<CourseItem>, Stri
 // Canvas API — fetch modules
 // ---------------------------------------------------------------------------
 
-/// Fetch course modules with video items and wiki pages.
+/// Fetch course modules (videos + wiki pages) via LMS WebviewWindow.
 pub async fn fetch_modules_api(
     state: &AppState,
     course_id: &str,
 ) -> Result<(Vec<VideoItem>, Vec<WikiPageItem>), String> {
-    let cookies = state.get_cookies().await;
-    if cookies.is_empty() {
-        return Err("로그인이 필요합니다. 다시 로그인해주세요.".into());
-    }
+    // JS: learningx 모듈 목록 + wiki page body를 한 번에 fetch
+    let js = format!(
+        r#"
+(async function() {{
+    try {{
+        var courseId = {course_id:?};
+        var xnToken = (document.cookie.match(/xn_api_token=([^;]+)/) || [])[1] || '';
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
 
-    let xn_token = state.xn_api_token.lock().await.clone().unwrap_or_default();
-    let csrf_token = state.csrf_token.lock().await.clone().unwrap_or_default();
+        var lxHeaders = {{Accept: 'application/json'}};
+        if (xnToken) lxHeaders['Authorization'] = 'Bearer ' + xnToken;
+        if (csrfToken) lxHeaders['X-CSRF-Token'] = csrfToken;
 
-    let url = format!(
-        "https://canvas.ssu.ac.kr/learningx/api/v1/courses/{}/modules?include_detail=true",
-        course_id
+        var r = await fetch(
+            'https://canvas.ssu.ac.kr/learningx/api/v1/courses/' + courseId + '/modules?include_detail=true',
+            {{credentials: 'include', headers: lxHeaders}}
+        );
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var modules = await r.json();
+
+        // wiki_page 아이템에 body 추가 (병렬 fetch)
+        var wikiTasks = [];
+        for (var i = 0; i < modules.length; i++) {{
+            var items = modules[i].module_items || [];
+            for (var j = 0; j < items.length; j++) {{
+                var item = items[j];
+                var icd = item.content_data && item.content_data.item_content_data;
+                var itemType = (icd && icd.content_type) || item.content_type || '';
+                if (itemType === 'wiki_page' && item.content_data && item.content_data.url) {{
+                    (function(theItem) {{
+                        var slug = theItem.content_data.url;
+                        var url = '/api/v1/courses/' + courseId + '/pages/' + encodeURIComponent(slug);
+                        wikiTasks.push(
+                            fetch(url, {{credentials: 'include', headers: {{Accept: 'application/json'}}}})
+                                .then(function(pr) {{ return pr.ok ? pr.json() : null; }})
+                                .then(function(pd) {{
+                                    if (pd && pd.body) theItem.__wiki_body = pd.body;
+                                    return null;
+                                }})
+                                .catch(function() {{ return null; }})
+                        );
+                    }})(item);
+                }}
+            }}
+        }}
+        await Promise.all(wikiTasks);
+
+        __sendToRust({{type: 'modules', data: modules}});
+    }} catch(e) {{
+        __sendToRust({{type: 'modules', error: e.message}});
+    }}
+}})();
+"#,
+        course_id = course_id,
     );
 
-    let mut req = state
-        .http_client
-        .get(&url)
-        .header("Cookie", &cookies)
-        .header("Accept", "application/json");
+    let result = eval_lms(state, "modules", &js).await?;
 
-    if !xn_token.is_empty() {
-        req = req.header("Authorization", format!("Bearer {}", xn_token));
-    }
-    if !csrf_token.is_empty() {
-        req = req.header("X-CSRF-Token", &csrf_token);
-    }
-
-    let resp = req.send().await.map_err(|e| format!("API 요청 실패: {}", e))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status().as_u16();
-        if status == 401 || status == 403 {
+    if let Some(err) = result.get("error").and_then(|v| v.as_str()) {
+        if err.contains("401") || err.contains("403") {
             return Err("로그인이 만료되었습니다. 다시 로그인해주세요.".into());
         }
-        return Err(format!("HTTP {}", status));
+        return Err(err.to_string());
     }
 
-    let modules: Vec<serde_json::Value> = resp
-        .json()
-        .await
-        .map_err(|e| format!("JSON 파싱 실패: {}", e))?;
+    let modules = result
+        .get("data")
+        .and_then(|v| v.as_array())
+        .ok_or("modules 응답 형식 오류")?;
 
     let mut videos: Vec<VideoItem> = Vec::new();
     let mut wiki_pages: Vec<WikiPageItem> = Vec::new();
 
-    for module in &modules {
+    for module in modules {
         let items = match module.get("module_items").and_then(|v| v.as_array()) {
             Some(items) => items,
             None => continue,
@@ -414,133 +443,72 @@ pub async fn fetch_modules_api(
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
-            // Video content
             if VIDEO_TYPES.contains(&item_type) {
                 let data = match item.pointer("/content_data/item_content_data") {
                     Some(d) => d,
                     None => continue,
                 };
-
-                let content_id_val = data.get("content_id").and_then(|v| v.as_str());
-                if let Some(cid) = content_id_val {
-                    let available = cid != "not_open";
-                    let title = item
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let duration = data
-                        .get("duration")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    let file_size = data
-                        .get("total_file_size")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    let thumbnail_url = data
-                        .get("thumbnail_url")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let week_position = item
-                        .pointer("/content_data/week_position")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0) as u32;
-
+                if let Some(cid) = data.get("content_id").and_then(|v| v.as_str()) {
                     videos.push(VideoItem {
-                        title,
+                        title: item
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
                         content_id: cid.to_string(),
-                        duration,
-                        file_size,
-                        thumbnail_url,
-                        week_position,
-                        available,
+                        duration: data.get("duration").and_then(|v| v.as_u64()).unwrap_or(0),
+                        file_size: data
+                            .get("total_file_size")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0),
+                        thumbnail_url: data
+                            .get("thumbnail_url")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        week_position: item
+                            .pointer("/content_data/week_position")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as u32,
+                        available: cid != "not_open",
                     });
                 }
                 continue;
             }
 
-            // Wiki page
             if item_type == "wiki_page" {
                 let page_slug = match item.pointer("/content_data/url").and_then(|v| v.as_str()) {
                     Some(s) => s.to_string(),
                     None => continue,
                 };
-
-                let module_item_id = item
-                    .get("module_item_id")
-                    .and_then(|v| match v {
-                        serde_json::Value::Number(n) => Some(n.to_string()),
-                        serde_json::Value::String(s) => Some(s.clone()),
-                        _ => None,
-                    })
-                    .unwrap_or_default();
-
-                let page_url = format!(
-                    "https://canvas.ssu.ac.kr/courses/{}/pages/{}?module_item_id={}",
-                    course_id, page_slug, module_item_id
-                );
-
-                let page_api_url = format!(
-                    "https://canvas.ssu.ac.kr/api/v1/courses/{}/pages/{}",
-                    course_id,
-                    urlencoding::encode(&page_slug)
-                );
-
-                // Fetch wiki page content
-                let page_resp = {
-                    let mut req = state
-                        .http_client
-                        .get(&page_api_url)
-                        .header("Cookie", &cookies)
-                        .header("Accept", "application/json");
-                    if !xn_token.is_empty() {
-                        req = req.header("Authorization", format!("Bearer {}", xn_token));
-                    }
-                    if !csrf_token.is_empty() {
-                        req = req.header("X-CSRF-Token", &csrf_token);
-                    }
-                    match req.send().await {
-                        Ok(r) => r,
-                        Err(_) => continue,
-                    }
-                };
-
-                if !page_resp.status().is_success() {
-                    continue;
-                }
-
-                let page_data: serde_json::Value = match page_resp.json().await {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-
-                let body = page_data
-                    .get("body")
+                let body = item
+                    .get("__wiki_body")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-
                 let files = extract_wiki_files_from_html(body);
                 if files.is_empty() {
                     continue;
                 }
-
-                let title = item
-                    .get("title")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let week_position = item
-                    .pointer("/content_data/week_position")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32;
-
+                let module_item_id = item
+                    .get("module_item_id")
+                    .map(|v| v.to_string().trim_matches('"').to_string())
+                    .unwrap_or_default();
                 wiki_pages.push(WikiPageItem {
-                    title,
+                    title: item
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     course_id: course_id.to_string(),
-                    week_position,
+                    week_position: item
+                        .pointer("/content_data/week_position")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as u32,
                     available: true,
-                    url: page_url,
+                    url: format!(
+                        "https://canvas.ssu.ac.kr/courses/{}/pages/{}?module_item_id={}",
+                        course_id, page_slug, module_item_id
+                    ),
                     files,
                 });
             }
