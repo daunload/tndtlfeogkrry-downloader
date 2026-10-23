@@ -6,6 +6,7 @@ const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const { EventEmitter } = require('node:events');
+const { join } = require('node:path');
 
 function load(file, imports = {}, globals = {}) {
   const source = readFileSync(file, 'utf8').replaceAll(
@@ -246,7 +247,7 @@ test('Whisper saves transcript and batch continues when Gemini summary fails', a
   assert.equal(single.success, true);
   assert.equal(single.text, '전사 결과');
   assert.equal(single.summaryError, 'invalid key');
-  assert.equal(single.txtPath, '/virtual/lecture.txt');
+  assert.equal(single.txtPath, join('/virtual', 'lecture.txt'));
   const batch = await handlers.get('batch')({ sender }, '/virtual', true);
   assert.equal(verified, false);
   assert.equal(batch.successCount, 2);
