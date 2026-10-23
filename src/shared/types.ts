@@ -6,12 +6,20 @@ export interface CourseItem {
 }
 
 export type GeminiModelId =
-  | 'gemini-3.1-pro'
-  | 'gemini-3-flash'
+  | 'gemini-3.1-pro-preview'
+  | 'gemini-3-flash-preview'
   | 'gemini-3.1-flash-lite'
   | 'gemini-2.5-flash'
-  | 'gemini-2.5-flash-lite'
-  | 'gemini-2.0-flash';
+  | 'gemini-2.5-flash-lite';
+
+/** 텍스트 변환 엔진: Gemini API 또는 로컬 Whisper(transformers.js) */
+export type TranscribeEngine = 'gemini' | 'whisper';
+
+export interface TranscribeEngineOption {
+  id: TranscribeEngine;
+  label: string;
+  description: string;
+}
 
 export interface GeminiModelOption {
   id: GeminiModelId;
@@ -114,7 +122,14 @@ export interface DownloadRecordWithStatus extends DownloadRecord {
 export interface TranscribeProgressData {
   fileName: string;
   percent: number; // 0~100. 0-90 변환, 95 병합, 100 완료
-  status: 'converting' | 'uploading' | 'transcribing' | 'merging' | 'done' | 'error';
+  status:
+    | 'converting'
+    | 'loading-model'
+    | 'uploading'
+    | 'transcribing'
+    | 'merging'
+    | 'done'
+    | 'error';
   currentPart?: number; // 분할 파일 중 현재 파트 번호
   totalParts?: number; // 분할 파일 총 파트 수
   currentFile?: number; // 일괄 변환 시 현재 파일 번호
@@ -122,3 +137,17 @@ export interface TranscribeProgressData {
   batchCompleted?: number; // 일괄 변환 완료 개수
   batchTotal?: number; // 일괄 변환 전체 개수
 }
+
+/** whisper-job 이벤트 페이로드 (Main → Renderer). 16kHz 모노 PCM을 Int16 청크로 나눠 전송한다. */
+export type WhisperJobMessage =
+  | { type: 'start'; jobId: string; totalSamples: number }
+  | { type: 'chunk'; jobId: string; offset: number; samples: Int16Array }
+  | { type: 'run'; jobId: string }
+  | { type: 'cancel'; jobId: string };
+
+/** whisper-job-result 이벤트 페이로드 (Renderer → Main) */
+export type WhisperJobResult =
+  | { type: 'model-progress'; jobId: string; percent: number }
+  | { type: 'progress'; jobId: string; percent: number }
+  | { type: 'done'; jobId: string; text: string }
+  | { type: 'error'; jobId: string; message: string; fatal: boolean };

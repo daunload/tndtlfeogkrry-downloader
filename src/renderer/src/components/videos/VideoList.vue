@@ -16,6 +16,7 @@ import {
   Check,
   Cloud
 } from 'lucide-vue-next';
+import { toSafeFileName } from '../../../../shared/config';
 import type { VideoItem } from '../../types';
 import type { TranscribeStatus } from '../../composables/useTranscriber';
 import VideoCard from './VideoCard.vue';
@@ -29,10 +30,18 @@ const props = defineProps<{
   statusMap: Record<string, { status: string; splitCurrent?: number; splitTotal?: number }>;
   formatDuration: (seconds: number) => string;
   formatSize: (bytes: number) => string;
+  /** 텍스트 변환 가능 여부 (Gemini 키 설정 또는 Whisper 엔진) */
   hasApiKey?: boolean;
+  /** 요약본 생성 가능 여부 (요약은 Gemini API 키 필요) */
+  canSummarize?: boolean;
+  /** File API 옵션 표시 여부 (Gemini 엔진 전용) */
+  showFileApi?: boolean;
+  isTranscribing?: boolean;
   isTranscribingBatch?: boolean;
   transcribeProgressMap?: Record<string, number>;
   transcribeStatusMap?: Record<string, TranscribeStatus>;
+  transcribeBatchProgress?: { completed: number; total: number } | null;
+  transcriptPaths?: Record<string, string>;
   downloadFolder?: string | null;
   historyContentIds?: Set<string>;
 }>();
@@ -46,6 +55,7 @@ const emit = defineEmits<{
   downloadSelected: [videos: VideoItem[], format: 'mp4' | 'mp3'];
   download: [video: VideoItem];
   transcribe: [video: VideoItem];
+  openText: [txtPath: string];
   transcribeAll: [];
   transcribeSelected: [videos: VideoItem[]];
   selectFolder: [];
@@ -64,6 +74,86 @@ const isAllSelected = computed(
 const selectedVideos = computed(() =>
   props.videos.filter((v) => selectedIds.value.has(v.contentId))
 );
+
+/**
+ * 변환 진행 이벤트는 파일명(안전한 이름 + 확장자)으로 오므로 여러 후보 키로 조회한다.
+ * mp4를 직접 변환하는 경우 `.mp4` 이름으로 이벤트가 온다.
+ */
+function transcribeKeys(video: VideoItem): string[] {
+  const safe = toSafeFileName(video.title);
+  return [`${safe}.mp3`, `${safe}.mp4`, `${video.title}.mp3`, video.title];
+}
+
+function getTranscribeProgress(video: VideoItem): number | undefined {
+  for (const key of transcribeKeys(video)) {
+    const value = props.transcribeProgressMap?.[key];
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function getTranscribeStatus(video: VideoItem): TranscribeStatus | undefined {
+  for (const key of transcribeKeys(video)) {
+    const value = props.transcribeStatusMap?.[key];
+    if (value) return value;
+  }
+  return undefined;
+}
+
+/** 일괄 다운로드+변환은 downloadingIds를 쓰지 않으므로 진행률(0~99)로도 다운로드 중 여부를 판단 */
+function isVideoDownloading(video: VideoItem): boolean {
+  if (props.downloadingIds.has(video.contentId)) return true;
+  const progress = props.progressMap[video.contentId];
+  return progress !== undefined && progress >= 0 && progress < 100;
+}
+
+const ACTIVE_TRANSCRIBE_STATUSES = [
+  'converting',
+  'loading-model',
+  'uploading',
+  'transcribing',
+  'merging'
+];
+
+const downloadingCount = computed(() => props.videos.filter(isVideoDownloading).length);
+const transcribingCount = computed(
+  () =>
+    props.videos.filter((v) =>
+      ACTIVE_TRANSCRIBE_STATUSES.includes(getTranscribeStatus(v)?.status ?? '')
+    ).length
+);
+
+/** 현재 진행 중인 작업 단계 표시 (다운로드 / 텍스트 변환) */
+const activityLines = computed(() => {
+  const lines: { kind: 'download' | 'transcribe'; text: string }[] = [];
+
+  if (downloadingCount.value > 0) {
+    const prefix = props.isTranscribingBatch ? '1단계 · ' : '';
+    lines.push({
+      kind: 'download',
+      text: `${prefix}영상 다운로드 중 — ${downloadingCount.value}개 진행 중`
+    });
+  }
+
+  if (transcribingCount.value > 0) {
+    const prefix = props.isTranscribingBatch ? '2단계 · ' : '';
+    const batch = props.transcribeBatchProgress;
+    const batchInfo = batch ? ` (완료 ${batch.completed}/${batch.total})` : '';
+    lines.push({
+      kind: 'transcribe',
+      text: `${prefix}텍스트 변환 중 — ${transcribingCount.value}개 진행 중${batchInfo}`
+    });
+  }
+
+  // 단계 전환 사이(키 확인, 다음 파일 대기 등)에도 작업 중임을 표시
+  if (lines.length === 0 && (props.isTranscribingBatch || props.isTranscribing)) {
+    lines.push({ kind: 'transcribe', text: '텍스트 변환 준비 중...' });
+  } else if (lines.length === 0 && props.isDownloadingAll) {
+    lines.push({ kind: 'download', text: '영상 다운로드 준비 중...' });
+  }
+
+  return lines;
+});
 
 function toggleSelect(video: VideoItem): void {
   const ids = new Set(selectedIds.value);
@@ -131,7 +221,7 @@ function closeDropdown(e: MouseEvent): void {
       <div class="flex flex-wrap items-center gap-3">
         <!-- 요약본 생성 체크박스 -->
         <button
-          v-if="hasApiKey"
+          v-if="canSummarize ?? hasApiKey"
           class="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-all duration-200"
           :class="
             withSummary
@@ -153,7 +243,7 @@ function closeDropdown(e: MouseEvent): void {
 
         <!-- File API 사용 체크박스 -->
         <button
-          v-if="hasApiKey"
+          v-if="hasApiKey && (showFileApi ?? true)"
           class="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-all duration-200"
           :class="
             useFileApi
@@ -271,6 +361,26 @@ function closeDropdown(e: MouseEvent): void {
       </span>
     </div>
 
+    <!-- 진행 중인 작업 상태 -->
+    <div
+      v-if="activityLines.length > 0"
+      class="flex flex-col gap-2 mb-6 px-4 py-3 rounded-2xl border border-border/60 bg-surface"
+      role="status"
+      aria-live="polite"
+    >
+      <div
+        v-for="line in activityLines"
+        :key="line.kind"
+        class="flex items-center gap-2.5 text-sm font-semibold"
+        :class="line.kind === 'download' ? 'text-primary' : 'text-purple-500'"
+      >
+        <Loader2 :size="16" class="animate-spin shrink-0" />
+        <Download v-if="line.kind === 'download'" :size="14" class="shrink-0" />
+        <FileText v-else :size="14" class="shrink-0" />
+        <span class="truncate">{{ line.text }}</span>
+      </div>
+    </div>
+
     <!-- Empty State -->
     <div
       v-if="!isLoading && videos.length === 0"
@@ -293,7 +403,7 @@ function closeDropdown(e: MouseEvent): void {
         v-for="video in videos"
         :key="video.contentId"
         :video="video"
-        :is-downloading="downloadingIds.has(video.contentId)"
+        :is-downloading="isVideoDownloading(video)"
         :progress="progressMap[video.contentId]"
         :status="statusMap[video.contentId]"
         :format-duration="formatDuration"
@@ -301,14 +411,12 @@ function closeDropdown(e: MouseEvent): void {
         :has-api-key="hasApiKey"
         :selected="selectedIds.has(video.contentId)"
         :is-in-history="historyContentIds?.has(video.contentId) ?? false"
-        :transcribe-progress="
-          transcribeProgressMap?.[video.title + '.mp3'] ?? transcribeProgressMap?.[video.title]
-        "
-        :transcribe-status="
-          transcribeStatusMap?.[video.title + '.mp3'] ?? transcribeStatusMap?.[video.title]
-        "
+        :transcribe-progress="getTranscribeProgress(video)"
+        :transcribe-status="getTranscribeStatus(video)"
+        :transcript-path="transcriptPaths?.[video.contentId]"
         @download="emit('download', $event)"
         @transcribe="emit('transcribe', $event)"
+        @open-text="emit('openText', $event)"
         @toggle-select="toggleSelect"
       />
     </div>

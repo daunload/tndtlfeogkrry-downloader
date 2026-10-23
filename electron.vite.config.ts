@@ -23,6 +23,11 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
+    // 사전 번들링하면 onnxruntime-web의 wasm 상대 경로(new URL(..., import.meta.url))가 깨져
+    // 개발 서버에서 Whisper 모델 로드가 실패한다
+    optimizeDeps: {
+      exclude: ['@huggingface/transformers']
+    },
     plugins: [vue(), tailwindcss()]
   }
 });

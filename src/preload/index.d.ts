@@ -10,6 +10,9 @@ import type {
   DownloadProgressData,
   TranscribeProgressData,
   GeminiModelId,
+  TranscribeEngine,
+  WhisperJobMessage,
+  WhisperJobResult,
   DownloadRecord,
   DownloadRecordWithStatus
 } from '../shared/types';
@@ -69,11 +72,25 @@ interface DownloadApi {
   deleteGeminiApiKey: () => Promise<{ success: boolean }>;
   getGeminiModel: () => Promise<{ model: GeminiModelId }>;
   setGeminiModel: (model: GeminiModelId) => Promise<{ success: boolean; error?: string }>;
+  getTranscribeEngine: () => Promise<{ engine: TranscribeEngine }>;
+  setTranscribeEngine: (engine: TranscribeEngine) => Promise<{ success: boolean; error?: string }>;
+
+  // Whisper (Main ↔ Renderer 브리지)
+  onWhisperJob: (callback: (message: WhisperJobMessage) => void) => void;
+  sendWhisperJobResult: (result: WhisperJobResult) => void;
+
   transcribeAudio: (
     filePath: string,
     withSummary?: boolean,
     useFileApi?: boolean
-  ) => Promise<{ success: boolean; text?: string; txtPath?: string; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    text?: string;
+    txtPath?: string;
+    summaryPath?: string;
+    summaryError?: string;
+    error?: string;
+  }>;
   transcribeBatch: (
     dirPath: string,
     withSummary?: boolean,
@@ -81,7 +98,7 @@ interface DownloadApi {
   ) => Promise<{
     success: boolean;
     error?: string;
-    results?: { fileName: string; success: boolean; error?: string }[];
+    results?: { fileName: string; success: boolean; error?: string; summaryError?: string }[];
     successCount?: number;
     total?: number;
   }>;
@@ -97,6 +114,13 @@ interface DownloadApi {
   ) => Promise<{
     success: boolean;
     error?: string;
+    fatalError?: string;
+    transcribeResults?: {
+      fileName: string;
+      success: boolean;
+      error?: string;
+      summaryError?: string;
+    }[];
     downloadSuccessCount?: number;
     transcribeSuccessCount?: number;
     total?: number;

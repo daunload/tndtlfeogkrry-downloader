@@ -1,17 +1,25 @@
 import { BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { IPC } from '../../shared/channels';
-import { isGeminiModel } from '../../shared/config';
+import { isGeminiModel, isTranscribeEngine } from '../../shared/config';
 import {
   saveGeminiApiKey,
   loadGeminiApiKey,
   deleteGeminiApiKey,
   saveGeminiModel,
-  loadGeminiModel
+  loadGeminiModel,
+  verifyGemini
 } from '../services/gemini';
-import type { GeminiModelId } from '../../shared/types';
+import { loadTranscribeEngine, saveTranscribeEngine } from '../services/transcribeEngine';
+import type { GeminiModelId, TranscribeEngine } from '../../shared/types';
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle(IPC.SET_GEMINI_API_KEY, async (_event, key: string) => {
+    // 저장 전에 실제로 사용 가능한 키인지 확인
+    const verified = await verifyGemini(key);
+    if (!verified.ok) {
+      return { success: false, error: verified.error };
+    }
+
     try {
       saveGeminiApiKey(key);
       return { success: true };
@@ -40,6 +48,23 @@ export function registerSettingsHandlers(): void {
 
     try {
       saveGeminiModel(model);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle(IPC.GET_TRANSCRIBE_ENGINE, async () => {
+    return { engine: loadTranscribeEngine() };
+  });
+
+  ipcMain.handle(IPC.SET_TRANSCRIBE_ENGINE, async (_event, engine: TranscribeEngine) => {
+    if (!isTranscribeEngine(engine)) {
+      return { success: false, error: '지원하지 않는 텍스트 변환 엔진입니다.' };
+    }
+
+    try {
+      saveTranscribeEngine(engine);
       return { success: true };
     } catch (err) {
       return { success: false, error: (err as Error).message };

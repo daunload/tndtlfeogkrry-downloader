@@ -48,6 +48,96 @@ export function loadGeminiModel(): GeminiModelId {
   }
 }
 
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const VERIFY_TIMEOUT_MS = 10_000;
+
+/** 재시도/다음 파일 진행이 의미 없는 오류 (키·권한·모델·할당량 문제) */
+export class GeminiFatalError extends Error {}
+
+/**
+ * Gemini API 오류를 사용자용 한국어 메시지로 변환한다.
+ * 키/권한/모델/할당량 문제는 GeminiFatalError로 반환해 배치 작업이 즉시 중단되도록 한다.
+ */
+export function toGeminiError(err: unknown, model?: GeminiModelId): Error {
+  if (err instanceof GeminiFatalError) return err;
+
+  const message = (err as Error)?.message || String(err);
+  const status = (err as { status?: number })?.status;
+  const has = (code: number): boolean => status === code || message.includes(`[${code} `);
+
+  // 잘못된 키는 401이 아니라 400 + API_KEY_INVALID로 응답된다
+  if (message.includes('API_KEY_INVALID') || message.includes('API key not valid') || has(401)) {
+    return new GeminiFatalError(
+      'Gemini API 키가 유효하지 않습니다. 설정에서 키를 다시 입력해주세요.'
+    );
+  }
+  if (message.includes('API_KEY_EXPIRED') || message.includes('API key expired')) {
+    return new GeminiFatalError('Gemini API 키가 만료되었습니다. 설정에서 새 키를 입력해주세요.');
+  }
+  if (has(403) || message.includes('PERMISSION_DENIED')) {
+    return new GeminiFatalError(
+      'Gemini API 키에 권한이 없습니다. Google AI Studio에서 키 상태와 API 사용 설정을 확인해주세요.'
+    );
+  }
+  // File API 404(파일 없음)와 구분하기 위해 models/ 경로가 포함된 경우만 모델 오류로 본다
+  if (
+    (has(404) && message.includes('models/')) ||
+    /is not supported for generateContent/i.test(message)
+  ) {
+    return new GeminiFatalError(
+      `선택한 Gemini 모델${model ? `(${model})` : ''}을 사용할 수 없습니다. 설정에서 다른 모델을 선택해주세요.`
+    );
+  }
+  // 2026-09부터 선불(Prepay) 크레딧 소진 시 429 대신 402를 반환한다. 크레딧을 충전하기 전에는 재시도해도 실패.
+  if (has(402) || message.includes('Payment Required')) {
+    return new GeminiFatalError(
+      'Gemini API 선불 크레딧이 소진되었습니다. Google AI Studio의 결제(Billing) 페이지에서 크레딧을 충전하거나 자동 충전을 설정해주세요.'
+    );
+  }
+  if (isQuotaExhausted(message)) {
+    return new GeminiFatalError(
+      'Gemini API 무료 할당량이 소진되었습니다. Google AI Studio에서 요금제를 확인하거나, 할당량이 초기화될 때까지 기다려주세요.'
+    );
+  }
+  if (has(429)) {
+    return new Error('Gemini API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  return err instanceof Error ? err : new Error(message);
+}
+
+/**
+ * API 키(및 모델)가 실제로 사용 가능한지 가벼운 조회 요청으로 확인한다.
+ * model을 넘기면 해당 모델 존재 여부까지 확인한다.
+ */
+export async function verifyGemini(
+  apiKey: string,
+  model?: GeminiModelId
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const url = model ? `${GEMINI_API_BASE}/models/${model}` : `${GEMINI_API_BASE}/models?pageSize=1`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS)
+    });
+  } catch {
+    return {
+      ok: false,
+      error:
+        'Gemini 서버에 연결할 수 없어 API 키를 확인하지 못했습니다. 네트워크 상태를 확인해주세요.'
+    };
+  }
+
+  if (res.ok) return { ok: true };
+
+  const body = await res.text().catch(() => '');
+  const err = Object.assign(new Error(`[${res.status} ${res.statusText}] ${body}`), {
+    status: res.status
+  });
+  return { ok: false, error: toGeminiError(err, model).message };
+}
+
 /** File API로 파일을 업로드하고 ACTIVE 상태가 될 때까지 대기한다. */
 async function uploadAndWaitForActive(
   mp3Path: string,
@@ -217,9 +307,13 @@ function isQuotaExhausted(message: string): boolean {
   );
 }
 
-/** 429 Rate Limit 시 지수 백오프로 재시도. 할당량 소진은 즉시 실패. */
+/**
+ * 429 Rate Limit 시 지수 백오프로 재시도. 키/모델/할당량 문제는 즉시 실패.
+ * 던지는 오류는 항상 toGeminiError()로 변환된 사용자용 메시지다.
+ */
 async function withRetry<T>(
   fn: () => Promise<T>,
+  model: GeminiModelId,
   maxRetries: number = GEMINI_MAX_RETRIES
 ): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -227,21 +321,20 @@ async function withRetry<T>(
       return await fn();
     } catch (err) {
       const message = (err as Error).message || '';
+      const mapped = toGeminiError(err, model);
 
-      if (isQuotaExhausted(message)) {
-        throw new Error(
-          'Gemini API 무료 할당량이 소진되었습니다. Google AI Studio에서 요금제를 확인하거나, 할당량이 초기화될 때까지 기다려주세요.'
-        );
-      }
-
-      if (message.includes('429') && attempt < maxRetries - 1) {
+      if (
+        !(mapped instanceof GeminiFatalError) &&
+        message.includes('429') &&
+        attempt < maxRetries - 1
+      ) {
         const serverDelay = parseRetryDelay(message);
         const backoffDelay = Math.pow(2, attempt) * 2000;
         const delay = serverDelay ?? backoffDelay;
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
-      throw err;
+      throw mapped;
     }
   }
   throw new Error('최대 재시도 횟수 초과');
@@ -254,7 +347,7 @@ export function transcribeWithRetry(
   useFileApi: boolean = false,
   maxRetries: number = GEMINI_MAX_RETRIES
 ): Promise<string> {
-  return withRetry(() => transcribeOne(mp3Path, apiKey, model, useFileApi), maxRetries);
+  return withRetry(() => transcribeOne(mp3Path, apiKey, model, useFileApi), model, maxRetries);
 }
 
 export function summarizeWithRetry(
@@ -263,7 +356,7 @@ export function summarizeWithRetry(
   model: GeminiModelId,
   maxRetries: number = GEMINI_MAX_RETRIES
 ): Promise<string> {
-  return withRetry(() => summarizeText(text, apiKey, model), maxRetries);
+  return withRetry(() => summarizeText(text, apiKey, model), model, maxRetries);
 }
 
 export function summarizePdfWithRetry(
@@ -272,7 +365,7 @@ export function summarizePdfWithRetry(
   model: GeminiModelId,
   maxRetries: number = GEMINI_MAX_RETRIES
 ): Promise<string> {
-  return withRetry(() => summarizePdfFile(pdfPath, apiKey, model), maxRetries);
+  return withRetry(() => summarizePdfFile(pdfPath, apiKey, model), model, maxRetries);
 }
 
 /**

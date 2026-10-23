@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Key, Check, Trash2, X, Eye, EyeOff, Sparkles, ChevronDown } from 'lucide-vue-next';
-import type { GeminiModelId, GeminiModelOption } from '../../../../shared/types';
+import { Key, Check, Trash2, X, Eye, EyeOff, Sparkles, ChevronDown, Cpu } from 'lucide-vue-next';
+import { DEFAULT_GEMINI_MODEL, TRANSCRIBE_ENGINE_OPTIONS } from '../../../../shared/config';
+import type { GeminiModelId, GeminiModelOption, TranscribeEngine } from '../../../../shared/types';
 
 const props = defineProps<{
   hasApiKey: boolean;
   selectedModel: GeminiModelId;
+  selectedEngine: TranscribeEngine;
   modelOptions: GeminiModelOption[];
+  keyError?: string;
+  isVerifyingKey?: boolean;
 }>();
 
 const emit = defineEmits<{
   save: [key: string];
   saveModel: [model: GeminiModelId];
+  saveEngine: [engine: TranscribeEngine];
   delete: [];
   close: [];
 }>();
@@ -19,7 +24,6 @@ const emit = defineEmits<{
 const keyInput = ref('');
 const localModel = ref<GeminiModelId>(props.selectedModel);
 const showKey = ref(false);
-const isSaving = ref(false);
 const isSavingModel = ref(false);
 const isModelDropdownOpen = ref(false);
 
@@ -34,13 +38,18 @@ watch(
   }
 );
 
-async function handleSave(): Promise<void> {
-  if (!keyInput.value.trim()) return;
-  isSaving.value = true;
+function handleSave(): void {
+  if (!keyInput.value.trim() || props.isVerifyingKey) return;
   emit('save', keyInput.value.trim());
-  keyInput.value = '';
-  isSaving.value = false;
 }
+
+// 검증 성공 시에만 입력값을 비운다 (실패하면 수정할 수 있도록 유지)
+watch(
+  () => props.hasApiKey,
+  (has) => {
+    if (has) keyInput.value = '';
+  }
+);
 
 async function handleSaveModel(): Promise<void> {
   if (localModel.value === props.selectedModel) return;
@@ -88,6 +97,42 @@ function selectModel(model: GeminiModelId): void {
         <div class="space-y-7">
           <section class="space-y-4">
             <div class="flex items-center gap-2">
+              <Cpu :size="16" class="text-primary" />
+              <h4 class="text-sm font-bold text-text-1">텍스트 변환 엔진</h4>
+            </div>
+
+            <div class="space-y-2">
+              <button
+                v-for="option in TRANSCRIBE_ENGINE_OPTIONS"
+                :key="option.id"
+                class="flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all"
+                :class="
+                  option.id === selectedEngine
+                    ? 'border-primary/40 bg-primary/8'
+                    : 'border-border/50 bg-surface-mute hover:border-primary/30 hover:bg-surface-soft'
+                "
+                @click="option.id !== selectedEngine && emit('saveEngine', option.id)"
+              >
+                <div class="min-w-0">
+                  <span class="text-sm font-semibold text-text-1">{{ option.label }}</span>
+                  <p class="mt-1 text-xs leading-5 text-text-3">{{ option.description }}</p>
+                </div>
+                <div
+                  class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
+                  :class="
+                    option.id === selectedEngine
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border'
+                  "
+                >
+                  <Check v-if="option.id === selectedEngine" :size="12" />
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <section class="space-y-4">
+            <div class="flex items-center gap-2">
               <Sparkles :size="16" class="text-primary" />
               <h4 class="text-sm font-bold text-text-1">사용할 모델</h4>
             </div>
@@ -131,7 +176,7 @@ function selectModel(model: GeminiModelId): void {
                         <div class="flex items-center gap-2 flex-wrap">
                           <span class="text-sm font-semibold text-text-1">{{ option.label }}</span>
                           <span
-                            v-if="option.id === 'gemini-2.5-flash'"
+                            v-if="option.id === DEFAULT_GEMINI_MODEL"
                             class="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-bold"
                           >
                             기본 추천
@@ -160,7 +205,7 @@ function selectModel(model: GeminiModelId): void {
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="text-sm font-semibold text-text-1">{{ selectedOption.label }}</span>
                   <span
-                    v-if="selectedOption.id === 'gemini-2.5-flash'"
+                    v-if="selectedOption.id === DEFAULT_GEMINI_MODEL"
                     class="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-bold"
                   >
                     기본 추천
@@ -224,14 +269,20 @@ function selectModel(model: GeminiModelId): void {
             </div>
             <button
               class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold bg-purple-500 text-white hover:bg-purple-600 shadow-lg shadow-purple-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="!keyInput.trim() || isSaving"
+              :disabled="!keyInput.trim() || isVerifyingKey"
               @click="handleSave"
             >
               <Key :size="16" />
-              API 키 저장
+              {{ isVerifyingKey ? 'API 키 확인 중...' : 'API 키 저장' }}
             </button>
+            <p
+              v-if="keyError"
+              class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs font-medium text-red-500 leading-5"
+            >
+              {{ keyError }}
+            </p>
             <p class="text-[11px] text-text-3/70 text-center">
-              키는 기기에 암호화되어 저장되며 외부로 전송되지 않습니다.
+              키는 기기에 암호화되어 저장되며 Google API 호출 외에는 외부로 전송되지 않습니다.
             </p>
           </section>
         </div>

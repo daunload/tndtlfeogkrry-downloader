@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import { IPC } from '../../shared/channels';
 import { getLmsSession, getOrCreateLmsWin } from '../window';
 
-const VIDEO_TYPES = ['everlec', 'movie', 'video', 'mp4'];
+const VIDEO_TYPES = ['everlec', 'movie', 'video', 'mp4', 'readystream'];
 
 interface WikiPageFileItem {
   title: string;

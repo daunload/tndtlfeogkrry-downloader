@@ -18,6 +18,8 @@ const downloadFolder = ref<string | null>(null);
 const downloadedPaths = ref<Record<string, string>>({});
 const isDownloadingAll = ref(false);
 const historyContentIds = ref<Set<string>>(new Set());
+/** contentId → 실제로 존재하는 변환 텍스트(.txt) 경로 */
+const transcriptPaths = ref<Record<string, string>>({});
 
 /** 현재 선택된 코스 정보 */
 const selectedCourse = computed(() => courses.value.find((c) => c.id === selectedCourseId.value));
@@ -38,6 +40,7 @@ interface UseDownloaderReturn {
   downloadedPaths: Ref<Record<string, string>>;
   isDownloadingAll: Ref<boolean>;
   historyContentIds: Ref<Set<string>>;
+  transcriptPaths: Ref<Record<string, string>>;
   login: () => Promise<void>;
   fetchCourses: () => Promise<void>;
   selectCourse: (course: CourseItem) => Promise<void>;
@@ -74,6 +77,13 @@ export function useDownloader(): UseDownloaderReturn {
     const result = await window.api.getHistory();
     if (result.success && result.records) {
       historyContentIds.value = new Set(result.records.map((r) => r.contentId));
+      // 히스토리에 있는 항목은 파일 존재 여부로 갱신, 히스토리 밖에서 변환된 항목은 유지
+      const paths = { ...transcriptPaths.value };
+      for (const r of result.records) {
+        if (r.txtExists && r.txtPath) paths[r.contentId] = r.txtPath;
+        else delete paths[r.contentId];
+      }
+      transcriptPaths.value = paths;
     }
   }
 
@@ -247,9 +257,12 @@ export function useDownloader(): UseDownloaderReturn {
         historyContentIds.value.add(video.contentId);
       }
       message.value = `다운로드 완료: ${video.title}`;
-    } else if (result.error !== 'cancelled') {
+    } else {
+      // 진행률이 남아 있으면 '다운로드 중'으로 표시되므로 취소 시에도 제거
       delete progressMap.value[video.contentId];
-      message.value = `다운로드 실패 (${video.title}): ${result.error}`;
+      if (result.error !== 'cancelled') {
+        message.value = `다운로드 실패 (${video.title}): ${result.error}`;
+      }
     }
   }
 
@@ -279,6 +292,7 @@ export function useDownloader(): UseDownloaderReturn {
     downloadedPaths,
     isDownloadingAll,
     historyContentIds,
+    transcriptPaths,
     login,
     fetchCourses,
     selectCourse,

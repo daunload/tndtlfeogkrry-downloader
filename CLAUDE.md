@@ -1,6 +1,6 @@
 # Soongsil LMS Downloader
 
-숭실대 Canvas LMS 강의 영상 다운로드 및 Gemini STT 텍스트 변환 Electron 데스크톱 앱.
+숭실대 Canvas LMS 강의 영상 다운로드 및 텍스트 변환(Gemini API 또는 로컬 Whisper) Electron 데스크톱 앱.
 
 ## 기술 스택
 
@@ -8,7 +8,7 @@
 - **프론트엔드**: Vue 3 (Composition API) + TypeScript + Tailwind CSS 4
 - **백엔드(main)**: TypeScript (Node.js)
 - **빌드**: electron-vite (Vite + Rollup), electron-builder
-- **주요 라이브러리**: fluent-ffmpeg, fast-xml-parser, @google/generative-ai, electron-updater
+- **주요 라이브러리**: fluent-ffmpeg, fast-xml-parser, @google/generative-ai, @huggingface/transformers (renderer 번들 전용 → devDependencies), electron-updater
 
 ## 프로젝트 구조
 
@@ -23,7 +23,9 @@ src/
 │   ├── window.ts        # BrowserWindow 관리 (createWindow, LMS 윈도우 싱글턴)
 │   ├── services/        # 비즈니스 로직
 │   │   ├── gemini.ts    # API 키 관리 + 텍스트 변환 (transcribeWithRetry)
-│   │   ├── media.ts     # FFmpeg: MP3 변환, 분할
+│   │   ├── whisper.ts   # 로컬 Whisper 브리지 (PCM 디코딩 → renderer Worker로 전사 요청)
+│   │   ├── transcribeEngine.ts # 변환 엔진 설정 (gemini | whisper)
+│   │   ├── media.ts     # FFmpeg: MP3 변환, 분할, 16kHz PCM 디코딩
 │   │   ├── lms.ts       # XML 파싱으로 미디어 URL 추출
 │   │   └── download.ts  # HTTPS 다운로드 + 단일 비디오 다운로드
 │   └── ipc/             # IPC 핸들러 (채널별 분리)
@@ -35,6 +37,7 @@ src/
 │       └── settings.ts  # API키 CRUD + open-file + select-folder
 ├── preload/             # contextBridge API (shared 채널/타입 사용)
 └── renderer/src/        # Vue 프론트엔드
+    └── whisper/         # transformers.js Web Worker + main ↔ worker 브리지
 ```
 
 ## 주요 명령어
@@ -70,12 +73,15 @@ pnpm build:win        # Windows 패키징
 1. `content.php` API → XML 파싱 → 미디어 URL 추출
 2. HTTPS 다운로드 (진행률 이벤트 발송)
 3. MP3 요청 시: MP4 → FFmpeg MP3 변환 → 19MB 초과 시 자동 분할
-4. 텍스트 변환: Gemini API로 분할 파일 순차 변환 → 병합
+4. 텍스트 변환: 엔진에 따라 분할 파일 순차 변환 → 병합
+   - Gemini: API 호출
+   - Whisper: main이 ffmpeg로 16kHz PCM 디코딩 → `whisper-job` 이벤트로 renderer에 청크 전송 → Web Worker(transformers.js, WebGPU)에서 전사 → `whisper-job-result`로 반환. 모델(`onnx-community/whisper-large-v3-turbo`)은 첫 실행 시 Hub에서 받아 Cache Storage에 저장
+5. 요약본: 항상 Gemini 사용 (Whisper 엔진이라도 API 키가 있을 때만 생성)
 
 ### 동시성
 
 - 다운로드: 최대 3개 병렬 (worker 패턴)
-- 텍스트 변환: 최대 2개 병렬
+- 텍스트 변환: Gemini 최대 2개 병렬, Whisper 1개씩 (GPU 공유)
 
 ## 중요 규칙
 

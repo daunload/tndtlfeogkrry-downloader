@@ -12,6 +12,9 @@ import type {
   DownloadProgressData,
   TranscribeProgressData,
   GeminiModelId,
+  TranscribeEngine,
+  WhisperJobMessage,
+  WhisperJobResult,
   DownloadRecord,
   DownloadRecordWithStatus
 } from '../shared/types';
@@ -96,11 +99,32 @@ const api = {
   setGeminiModel: (model: GeminiModelId): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.SET_GEMINI_MODEL, model),
 
+  getTranscribeEngine: (): Promise<{ engine: TranscribeEngine }> =>
+    ipcRenderer.invoke(IPC.GET_TRANSCRIBE_ENGINE),
+
+  setTranscribeEngine: (engine: TranscribeEngine): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.SET_TRANSCRIBE_ENGINE, engine),
+
+  // --- Whisper (Main ↔ Renderer 브리지) ---
+  onWhisperJob: (callback: (message: WhisperJobMessage) => void): void => {
+    ipcRenderer.on(IPC_EVENT.WHISPER_JOB, (_event, message) => callback(message));
+  },
+
+  sendWhisperJobResult: (result: WhisperJobResult): void => {
+    ipcRenderer.send(IPC_EVENT.WHISPER_JOB_RESULT, result);
+  },
+
   transcribeAudio: (
     filePath: string,
     withSummary?: boolean,
     useFileApi?: boolean
-  ): Promise<{ success: boolean; text?: string; txtPath?: string; error?: string }> =>
+  ): Promise<{
+    success: boolean;
+    text?: string;
+    txtPath?: string;
+    summaryPath?: string;
+    error?: string;
+  }> =>
     ipcRenderer.invoke(IPC.TRANSCRIBE_AUDIO, filePath, withSummary ?? true, useFileApi ?? false),
 
   transcribeBatch: (
@@ -133,6 +157,8 @@ const api = {
   ): Promise<{
     success: boolean;
     error?: string;
+    fatalError?: string;
+    transcribeResults?: { fileName: string; success: boolean; error?: string }[];
     downloadSuccessCount?: number;
     transcribeSuccessCount?: number;
     total?: number;

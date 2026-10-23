@@ -8,7 +8,8 @@ import {
   Calendar,
   FileText,
   Check,
-  Lock
+  Lock,
+  FileCheck2
 } from 'lucide-vue-next';
 import type { TranscribeStatus } from '../../composables/useTranscriber';
 import { computed } from 'vue';
@@ -26,12 +27,15 @@ const props = defineProps<{
   transcribeStatus?: TranscribeStatus;
   selected?: boolean;
   isInHistory?: boolean;
+  /** 변환된 텍스트 파일 경로 (파일이 존재할 때만 전달됨) */
+  transcriptPath?: string;
 }>();
 
 const emit = defineEmits<{
   download: [video: VideoItem];
   transcribe: [video: VideoItem];
   toggleSelect: [video: VideoItem];
+  openText: [txtPath: string];
 }>();
 
 const isComplete = computed(() => !props.isDownloading && props.progress === 100);
@@ -45,9 +49,13 @@ const statusLabel = computed(() => {
   return null;
 });
 
+/** 다운로드 진행 중 표시 문구 (MP3 변환/분할 단계가 아니면 '다운로드 중') */
+const downloadLabel = computed(() => statusLabel.value ?? '다운로드 중');
+
 const transcribeLabel = computed(() => {
   if (!props.transcribeStatus) return null;
   if (props.transcribeStatus.status === 'converting') return 'MP3 변환 중...';
+  if (props.transcribeStatus.status === 'loading-model') return 'Whisper 모델 준비 중...';
   if (props.transcribeStatus.status === 'uploading') {
     if (props.transcribeStatus.totalParts && props.transcribeStatus.totalParts > 1) {
       return `파일 업로드 중 (${props.transcribeStatus.currentPart}/${props.transcribeStatus.totalParts})`;
@@ -63,12 +71,13 @@ const transcribeLabel = computed(() => {
   if (props.transcribeStatus.status === 'merging') return '파트 병합 중...';
   if (props.transcribeStatus.status === 'done') return '변환 완료';
   if (props.transcribeStatus.status === 'error') return '변환 실패';
-  return null;
+  return '텍스트 변환 중...';
 });
 
 const isTranscribing = computed(
   () =>
     props.transcribeStatus?.status === 'converting' ||
+    props.transcribeStatus?.status === 'loading-model' ||
     props.transcribeStatus?.status === 'uploading' ||
     props.transcribeStatus?.status === 'transcribing' ||
     props.transcribeStatus?.status === 'merging'
@@ -204,11 +213,9 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
             >{{ Math.round(progress || 0) }}%</span
           >
         </div>
-        <span
-          v-if="statusLabel"
-          class="hidden sm:block text-[10px] font-semibold text-text-3 text-center whitespace-nowrap"
-          >{{ statusLabel }}</span
-        >
+        <span class="text-[10px] font-bold text-primary text-center whitespace-nowrap">{{
+          downloadLabel
+        }}</span>
       </div>
 
       <div
@@ -243,7 +250,7 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
       <!-- 텍스트 변환 버튼 -->
       <template v-if="isComplete && hasApiKey">
         <div
-          v-if="isTranscribeDone"
+          v-if="isTranscribeDone && !transcriptPath"
           class="flex flex-row sm:flex-col items-center justify-center gap-1 px-2 sm:px-3 min-w-0 sm:min-w-[60px]"
         >
           <FileText :size="20" sm:size="24" class="text-purple-500" />
@@ -303,11 +310,9 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
             </svg>
             <Loader2 :size="12" sm:size="14" class="absolute text-purple-500 animate-spin" />
           </div>
-          <span
-            v-if="transcribeLabel"
-            class="hidden sm:block text-[9px] font-semibold text-text-3 text-center whitespace-nowrap"
-            >{{ transcribeLabel }}</span
-          >
+          <span class="text-[10px] font-bold text-purple-500 text-center whitespace-nowrap">{{
+            transcribeLabel
+          }}</span>
         </div>
 
         <button
@@ -319,6 +324,16 @@ const isTranscribeDone = computed(() => props.transcribeStatus?.status === 'done
           <FileText :size="18" />
         </button>
       </template>
+
+      <!-- 변환된 텍스트 열기 (텍스트 파일이 존재할 때만) -->
+      <button
+        v-if="transcriptPath && !isTranscribing"
+        class="w-10 h-10 flex items-center justify-center rounded-xl bg-success/10 text-success hover:bg-success hover:text-white transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg"
+        title="변환된 텍스트 열기"
+        @click="emit('openText', transcriptPath)"
+      >
+        <FileCheck2 :size="18" />
+      </button>
     </div>
   </div>
 </template>

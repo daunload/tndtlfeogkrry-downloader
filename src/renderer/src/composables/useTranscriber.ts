@@ -1,9 +1,13 @@
 import { ref, onUnmounted, type Ref } from 'vue';
-import { DEFAULT_GEMINI_MODEL } from '../../../shared/config';
-import type { GeminiModelId } from '../../../shared/types';
+import { DEFAULT_GEMINI_MODEL, DEFAULT_TRANSCRIBE_ENGINE } from '../../../shared/config';
+import type {
+  GeminiModelId,
+  TranscribeEngine,
+  TranscribeProgressData
+} from '../../../shared/types';
 
 export interface TranscribeStatus {
-  status: 'converting' | 'uploading' | 'transcribing' | 'merging' | 'done' | 'error';
+  status: TranscribeProgressData['status'];
   currentPart?: number;
   totalParts?: number;
   currentFile?: number;
@@ -12,6 +16,7 @@ export interface TranscribeStatus {
 
 const hasApiKey = ref(false);
 const selectedGeminiModel = ref<GeminiModelId>(DEFAULT_GEMINI_MODEL);
+const transcribeEngine = ref<TranscribeEngine>(DEFAULT_TRANSCRIBE_ENGINE);
 const withSummary = ref(true);
 const useFileApi = ref(false);
 const isTranscribing = ref(false);
@@ -19,10 +24,13 @@ const isTranscribingBatch = ref(false);
 const transcribeProgressMap = ref<Record<string, number>>({});
 const transcribeStatusMap = ref<Record<string, TranscribeStatus>>({});
 const transcribeMessage = ref('');
+/** 일괄 변환 진행 개수 (완료/전체). 일괄 작업이 아닐 때는 null */
+const transcribeBatchProgress = ref<{ completed: number; total: number } | null>(null);
 
 interface UseTranscriberReturn {
   hasApiKey: Ref<boolean>;
   selectedGeminiModel: Ref<GeminiModelId>;
+  transcribeEngine: Ref<TranscribeEngine>;
   withSummary: Ref<boolean>;
   useFileApi: Ref<boolean>;
   isTranscribing: Ref<boolean>;
@@ -30,15 +38,18 @@ interface UseTranscriberReturn {
   transcribeProgressMap: Ref<Record<string, number>>;
   transcribeStatusMap: Ref<Record<string, TranscribeStatus>>;
   transcribeMessage: Ref<string>;
+  transcribeBatchProgress: Ref<{ completed: number; total: number } | null>;
   checkApiKey: () => Promise<void>;
-  saveApiKey: (key: string) => Promise<boolean>;
+  saveApiKey: (key: string) => Promise<{ success: boolean; error?: string }>;
   deleteApiKey: () => Promise<void>;
   loadGeminiModel: () => Promise<void>;
   saveGeminiModel: (model: GeminiModelId) => Promise<boolean>;
+  loadTranscribeEngine: () => Promise<void>;
+  saveTranscribeEngine: (engine: TranscribeEngine) => Promise<boolean>;
   transcribe: (
     filePath: string,
     fileName: string
-  ) => Promise<{ success: boolean; txtPath?: string } | undefined>;
+  ) => Promise<{ success: boolean; txtPath?: string; summaryPath?: string } | undefined>;
   transcribeBatch: (dirPath: string) => Promise<void>;
   downloadAndTranscribeAll: (
     videos: { contentId: string; title: string; fileSize: number; duration: number }[],
@@ -51,6 +62,7 @@ interface UseTranscriberReturn {
 function statusToMessage(data: {
   fileName: string;
   status: string;
+  percent: number;
   currentPart?: number;
   totalParts?: number;
   currentFile?: number;
@@ -65,6 +77,8 @@ function statusToMessage(data: {
   switch (data.status) {
     case 'converting':
       return `MP3 변환 중${fileInfo}: ${name}`;
+    case 'loading-model':
+      return `Whisper 모델 준비 중 (${data.percent}%) — 첫 실행 시 모델을 내려받습니다`;
     case 'uploading':
       return `파일 업로드 중${fileInfo}${partInfo}: ${name}`;
     case 'transcribing':
@@ -91,6 +105,7 @@ export function useTranscriber(): UseTranscriberReturn {
       totalFiles: data.totalFiles
     };
     if (data.batchCompleted != null && data.batchTotal != null) {
+      transcribeBatchProgress.value = { completed: data.batchCompleted, total: data.batchTotal };
       transcribeMessage.value = `텍스트 변환 중: ${data.batchCompleted}/${data.batchTotal}개 완료`;
     } else {
       transcribeMessage.value = statusToMessage(data);
@@ -101,18 +116,31 @@ export function useTranscriber(): UseTranscriberReturn {
     window.api.removeTranscribeProgress();
   });
 
+  /** 일부 파일 변환 실패 시 첫 번째 실패 사유를 덧붙인다 */
+  function failureReasonSuffix(results?: { success: boolean; error?: string }[]): string {
+    const failed = results?.find((r) => !r.success);
+    return failed?.error ? ` (실패 사유: ${failed.error})` : '';
+  }
+
+  function summaryFailureSuffix(results?: { summaryError?: string }[]): string {
+    const failed = results?.filter((r) => r.summaryError);
+    return failed?.length
+      ? ` (전사 저장 완료, 요약 ${failed.length}개 실패: ${failed[0].summaryError})`
+      : '';
+  }
+
   async function checkApiKey(): Promise<void> {
     const result = await window.api.getGeminiApiKey();
     hasApiKey.value = result.hasKey;
   }
 
-  async function saveApiKey(key: string): Promise<boolean> {
+  async function saveApiKey(key: string): Promise<{ success: boolean; error?: string }> {
     const result = await window.api.setGeminiApiKey(key);
     if (result.success) {
       hasApiKey.value = true;
-      return true;
+      return { success: true };
     }
-    return false;
+    return { success: false, error: result.error || 'API 키 저장 실패' };
   }
 
   async function deleteApiKey(): Promise<void> {
@@ -137,41 +165,78 @@ export function useTranscriber(): UseTranscriberReturn {
     return false;
   }
 
+  async function loadTranscribeEngine(): Promise<void> {
+    const result = await window.api.getTranscribeEngine();
+    transcribeEngine.value = result.engine;
+  }
+
+  async function saveTranscribeEngine(engine: TranscribeEngine): Promise<boolean> {
+    const result = await window.api.setTranscribeEngine(engine);
+    if (result.success) {
+      transcribeEngine.value = engine;
+      transcribeMessage.value = `텍스트 변환 엔진 변경: ${engine === 'whisper' ? 'Whisper (로컬)' : 'Gemini'}`;
+      return true;
+    }
+
+    transcribeMessage.value = result.error || '텍스트 변환 엔진 저장 실패';
+    return false;
+  }
+
   async function transcribe(
     filePath: string,
     fileName: string
-  ): Promise<{ success: boolean; txtPath?: string } | undefined> {
+  ): Promise<{ success: boolean; txtPath?: string; summaryPath?: string } | undefined> {
     isTranscribing.value = true;
     transcribeProgressMap.value[fileName] = 0;
     transcribeMessage.value = `텍스트 변환 중: ${fileName}`;
 
-    const result = await window.api.transcribeAudio(filePath, withSummary.value, useFileApi.value);
+    try {
+      const result = await window.api.transcribeAudio(
+        filePath,
+        withSummary.value,
+        useFileApi.value
+      );
 
-    isTranscribing.value = false;
-
-    if (result.success) {
-      transcribeProgressMap.value[fileName] = 100;
-      transcribeMessage.value = `변환 완료: ${fileName}`;
-      return { success: true, txtPath: result.txtPath };
-    } else {
-      delete transcribeProgressMap.value[fileName];
-      transcribeMessage.value = `변환 실패 (${fileName}): ${result.error}`;
+      if (result.success) {
+        transcribeProgressMap.value[fileName] = 100;
+        transcribeMessage.value = `변환 완료: ${fileName}` + summaryFailureSuffix([result]);
+        return { success: true, txtPath: result.txtPath, summaryPath: result.summaryPath };
+      } else {
+        delete transcribeProgressMap.value[fileName];
+        transcribeMessage.value = `변환 실패 (${fileName}): ${result.error}`;
+        return { success: false };
+      }
+    } catch (err) {
+      transcribeMessage.value = `변환 요청 실패: ${String(err)}`;
       return { success: false };
+    } finally {
+      isTranscribing.value = false;
     }
   }
 
   async function transcribeBatch(dirPath: string): Promise<void> {
     isTranscribingBatch.value = true;
+    transcribeBatchProgress.value = null;
     transcribeMessage.value = '전체 텍스트 변환을 시작합니다...';
 
-    const result = await window.api.transcribeBatch(dirPath, withSummary.value, useFileApi.value);
+    try {
+      const result = await window.api.transcribeBatch(dirPath, withSummary.value, useFileApi.value);
 
-    isTranscribingBatch.value = false;
-
-    if (result.success && result.results) {
-      transcribeMessage.value = `전체 변환 완료: ${result.successCount}/${result.total}개 성공`;
-    } else {
-      transcribeMessage.value = result.error || '전체 변환 실패';
+      if (result.success && result.results) {
+        transcribeMessage.value =
+          `전체 변환 완료: ${result.successCount}/${result.total}개 성공` +
+          failureReasonSuffix(result.results) +
+          summaryFailureSuffix(result.results);
+      } else if (result.results) {
+        transcribeMessage.value = `변환 중단 (${result.successCount}/${result.total}개 성공): ${result.error}`;
+      } else {
+        transcribeMessage.value = result.error || '전체 변환 실패';
+      }
+    } catch (err) {
+      transcribeMessage.value = `변환 요청 실패: ${String(err)}`;
+    } finally {
+      isTranscribingBatch.value = false;
+      transcribeBatchProgress.value = null;
     }
   }
 
@@ -181,27 +246,38 @@ export function useTranscriber(): UseTranscriberReturn {
     meta?: { courseId: string; courseName: string }
   ): Promise<void> {
     isTranscribingBatch.value = true;
+    transcribeBatchProgress.value = null;
     transcribeMessage.value = '전체 다운로드 및 텍스트 변환을 시작합니다...';
 
-    const result = await window.api.downloadAndTranscribeAll(
-      videos,
-      folderPath,
-      withSummary.value,
-      useFileApi.value,
-      meta
-    );
+    try {
+      const result = await window.api.downloadAndTranscribeAll(
+        videos,
+        folderPath,
+        withSummary.value,
+        useFileApi.value,
+        meta
+      );
 
-    isTranscribingBatch.value = false;
+      if (result.error === 'cancelled') {
+        transcribeMessage.value = '';
+        return;
+      }
 
-    if (result.error === 'cancelled') {
-      transcribeMessage.value = '';
-      return;
-    }
-
-    if (result.success) {
-      transcribeMessage.value = `다운로드 ${result.downloadSuccessCount}/${result.total}개, 변환 ${result.transcribeSuccessCount}/${result.total}개 성공`;
-    } else {
-      transcribeMessage.value = result.error || '전체 변환 실패';
+      if (result.success) {
+        const summary = `다운로드 ${result.downloadSuccessCount}/${result.total}개, 변환 ${result.transcribeSuccessCount}/${result.total}개 성공`;
+        transcribeMessage.value = result.fatalError
+          ? `${summary} — 변환 중단: ${result.fatalError}`
+          : summary +
+            failureReasonSuffix(result.transcribeResults) +
+            summaryFailureSuffix(result.transcribeResults);
+      } else {
+        transcribeMessage.value = result.error || '전체 변환 실패';
+      }
+    } catch (err) {
+      transcribeMessage.value = `변환 요청 실패: ${String(err)}`;
+    } finally {
+      isTranscribingBatch.value = false;
+      transcribeBatchProgress.value = null;
     }
   }
 
@@ -212,6 +288,7 @@ export function useTranscriber(): UseTranscriberReturn {
   return {
     hasApiKey,
     selectedGeminiModel,
+    transcribeEngine,
     withSummary,
     useFileApi,
     isTranscribing,
@@ -219,11 +296,14 @@ export function useTranscriber(): UseTranscriberReturn {
     transcribeProgressMap,
     transcribeStatusMap,
     transcribeMessage,
+    transcribeBatchProgress,
     checkApiKey,
     saveApiKey,
     deleteApiKey,
     loadGeminiModel,
     saveGeminiModel,
+    loadTranscribeEngine,
+    saveTranscribeEngine,
     transcribe,
     transcribeBatch,
     downloadAndTranscribeAll,

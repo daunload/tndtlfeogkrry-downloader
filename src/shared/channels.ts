@@ -12,6 +12,8 @@ export const IPC = {
   DELETE_GEMINI_API_KEY: 'delete-gemini-api-key',
   SET_GEMINI_MODEL: 'set-gemini-model',
   GET_GEMINI_MODEL: 'get-gemini-model',
+  SET_TRANSCRIBE_ENGINE: 'set-transcribe-engine',
+  GET_TRANSCRIBE_ENGINE: 'get-transcribe-engine',
   TRANSCRIBE_AUDIO: 'transcribe-audio',
   TRANSCRIBE_BATCH: 'transcribe-batch',
   DOWNLOAD_AND_TRANSCRIBE_ALL: 'download-and-transcribe-all',
@@ -32,5 +34,9 @@ export const IPC = {
 /** ipcMain.send / ipcRenderer.on 이벤트 채널명 */
 export const IPC_EVENT = {
   DOWNLOAD_PROGRESS: 'download-progress',
-  TRANSCRIBE_PROGRESS: 'transcribe-progress'
+  TRANSCRIBE_PROGRESS: 'transcribe-progress',
+  /** Whisper 전사 작업 요청 (Main → Renderer) */
+  WHISPER_JOB: 'whisper-job',
+  /** Whisper 전사 진행률/결과 (Renderer → Main, ipcRenderer.send / ipcMain.on) */
+  WHISPER_JOB_RESULT: 'whisper-job-result'
 } as const;

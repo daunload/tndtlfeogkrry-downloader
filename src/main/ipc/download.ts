@@ -9,7 +9,12 @@ import type { DownloadMeta, VideoRefWithMeta } from '../../shared/types';
 import { downloadOne } from '../services/download';
 import { addRecord } from '../services/history';
 import { getLmsSession } from '../window';
-import { loadGeminiApiKey, loadGeminiModel, summarizePdfWithRetry } from '../services/gemini';
+import {
+  GeminiFatalError,
+  loadGeminiApiKey,
+  loadGeminiModel,
+  summarizePdfWithRetry
+} from '../services/gemini';
 
 export function registerDownloadHandlers(): void {
   ipcMain.handle(
@@ -122,11 +127,11 @@ export function registerDownloadHandlers(): void {
       writeFileSync(summaryPath, summaryText, 'utf-8');
       return { success: true, summaryPath };
     } catch (err) {
-      const message = (err as Error).message;
-      if (message.includes('할당량이 소진')) {
-        return { success: false, error: message };
+      // Gemini 관련 오류는 withRetry()가 사용자용 메시지로 변환해 둠
+      if (err instanceof GeminiFatalError) {
+        return { success: false, error: err.message };
       }
-      return { success: false, error: `PDF 요약 실패: ${message}` };
+      return { success: false, error: `PDF 요약 실패: ${(err as Error).message}` };
     }
   });
 

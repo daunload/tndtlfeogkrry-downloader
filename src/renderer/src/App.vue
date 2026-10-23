@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { GEMINI_MODEL_OPTIONS, toSafeFileName } from '../../shared/config';
-import type { GeminiModelId } from '../../shared/types';
+import type { GeminiModelId, TranscribeEngine } from '../../shared/types';
 import type { VideoItem, WikiPageFileItem } from './types';
 import { useDownloader } from './composables/useDownloader';
 import { useTranscriber } from './composables/useTranscriber';
@@ -31,6 +31,7 @@ const {
   downloadedPaths,
   isDownloadingAll,
   historyContentIds,
+  transcriptPaths,
   login,
   fetchCourses,
   selectCourse,
@@ -47,22 +48,30 @@ const {
 const {
   hasApiKey,
   selectedGeminiModel,
+  transcribeEngine,
   withSummary,
   useFileApi,
+  isTranscribing,
   isTranscribingBatch,
   transcribeProgressMap,
   transcribeStatusMap,
   transcribeMessage,
+  transcribeBatchProgress,
   checkApiKey,
   saveApiKey,
   deleteApiKey,
   loadGeminiModel,
   saveGeminiModel,
+  loadTranscribeEngine,
+  saveTranscribeEngine,
   transcribe,
-  downloadAndTranscribeAll
+  downloadAndTranscribeAll,
+  openFile
 } = useTranscriber();
 
 const showSettings = ref(false);
+const apiKeyError = ref('');
+const isVerifyingApiKey = ref(false);
 const showLibrary = ref(false);
 const contentTab = ref<'video' | 'wiki'>('video');
 const toastMessage = ref('');
@@ -78,6 +87,9 @@ const {
   wikiMessage
 } = useWikiFiles();
 
+/** Whisper는 API 키 없이 변환 가능. 요약은 Gemini 키가 있을 때만 */
+const canTranscribe = computed(() => transcribeEngine.value === 'whisper' || hasApiKey.value);
+
 const activeView = computed<'courses' | 'library'>(() =>
   showLibrary.value ? 'library' : 'courses'
 );
@@ -85,6 +97,7 @@ const activeView = computed<'courses' | 'library'>(() =>
 onMounted(() => {
   checkApiKey();
   loadGeminiModel();
+  loadTranscribeEngine();
   loadHistoryIds();
   loadWikiFileHistory();
 });
@@ -126,7 +139,7 @@ watch(message, (val) => {
 });
 
 async function openSettings(): Promise<void> {
-  await loadGeminiModel();
+  await Promise.all([loadGeminiModel(), loadTranscribeEngine()]);
   showSettings.value = true;
 }
 
@@ -154,11 +167,6 @@ function handleBackToCourses(): void {
   goBackToCourses();
 }
 
-/** txtPath에서 요약본 경로를 도출 */
-function deriveSummaryPath(txtPath: string): string {
-  return txtPath.replace(/\.txt$/, '_요약본.md');
-}
-
 async function handleTranscribe(video: { contentId: string; title: string }): Promise<void> {
   const savedPath = downloadedPaths.value[video.contentId];
   const safeName = toSafeFileName(video.title);
@@ -167,8 +175,12 @@ async function handleTranscribe(video: { contentId: string; title: string }): Pr
     const fileName = savedPath.split('/').pop() || `${safeName}.mp3`;
     const result = await transcribe(savedPath, fileName);
     if (result?.success && result.txtPath) {
-      const summaryPath = withSummary.value ? deriveSummaryPath(result.txtPath) : undefined;
-      await window.api.updateHistoryTranscription(video.contentId, result.txtPath, summaryPath);
+      await window.api.updateHistoryTranscription(
+        video.contentId,
+        result.txtPath,
+        result.summaryPath
+      );
+      transcriptPaths.value[video.contentId] = result.txtPath;
     }
     return;
   }
@@ -185,8 +197,12 @@ async function handleTranscribe(video: { contentId: string; title: string }): Pr
   const filePath = `${folder}/${safeName}.mp3`;
   const result = await transcribe(filePath, `${safeName}.mp3`);
   if (result?.success && result.txtPath) {
-    const summaryPath = withSummary.value ? deriveSummaryPath(result.txtPath) : undefined;
-    await window.api.updateHistoryTranscription(video.contentId, result.txtPath, summaryPath);
+    await window.api.updateHistoryTranscription(
+      video.contentId,
+      result.txtPath,
+      result.summaryPath
+    );
+    transcriptPaths.value[video.contentId] = result.txtPath;
   }
 }
 
@@ -198,6 +214,14 @@ async function handleDownloadAll(format: 'mp4' | 'mp3'): Promise<void> {
 async function handleDownloadSelected(selected: VideoItem[], format: 'mp4' | 'mp3'): Promise<void> {
   downloadFormat.value = format;
   await downloadAll(selected);
+}
+
+/** 일괄 다운로드+변환 종료 후 완료되지 못한(실패/취소) 다운로드 진행률을 정리 */
+function clearStaleProgress(targets: { contentId: string }[]): void {
+  for (const v of targets) {
+    const progress = progressMap.value[v.contentId];
+    if (progress !== undefined && progress < 100) delete progressMap.value[v.contentId];
+  }
 }
 
 function getCourseMeta(): { courseId: string; courseName: string } | undefined {
@@ -218,6 +242,7 @@ async function handleTranscribeAll(): Promise<void> {
     downloadFolder.value ?? undefined,
     getCourseMeta()
   );
+  clearStaleProgress(videos.value);
   loadHistoryIds();
 }
 
@@ -233,12 +258,21 @@ async function handleTranscribeSelected(selected: VideoItem[]): Promise<void> {
     downloadFolder.value ?? undefined,
     getCourseMeta()
   );
+  clearStaleProgress(selected);
   loadHistoryIds();
 }
 
 async function handleSaveApiKey(key: string): Promise<void> {
-  await saveApiKey(key);
-  showSettings.value = false;
+  apiKeyError.value = '';
+  isVerifyingApiKey.value = true;
+  const result = await saveApiKey(key);
+  isVerifyingApiKey.value = false;
+
+  if (result.success) {
+    showSettings.value = false;
+  } else {
+    apiKeyError.value = result.error ?? 'API 키 저장 실패';
+  }
 }
 
 async function handleDeleteApiKey(): Promise<void> {
@@ -247,6 +281,10 @@ async function handleDeleteApiKey(): Promise<void> {
 
 async function handleSaveGeminiModel(model: GeminiModelId): Promise<void> {
   await saveGeminiModel(model);
+}
+
+async function handleSaveTranscribeEngine(engine: TranscribeEngine): Promise<void> {
+  await saveTranscribeEngine(engine);
 }
 
 async function handleDownloadWikiFile(file: WikiPageFileItem): Promise<void> {
@@ -330,10 +368,15 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
                   :status-map="statusMap"
                   :format-duration="formatDuration"
                   :format-size="formatSize"
-                  :has-api-key="hasApiKey"
+                  :has-api-key="canTranscribe"
+                  :can-summarize="hasApiKey"
+                  :show-file-api="transcribeEngine === 'gemini'"
+                  :is-transcribing="isTranscribing"
                   :is-transcribing-batch="isTranscribingBatch"
                   :transcribe-progress-map="transcribeProgressMap"
                   :transcribe-status-map="transcribeStatusMap"
+                  :transcribe-batch-progress="transcribeBatchProgress"
+                  :transcript-paths="transcriptPaths"
                   :download-folder="downloadFolder"
                   :history-content-ids="historyContentIds"
                   @back="handleBackToCourses"
@@ -341,6 +384,7 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
                   @download-selected="handleDownloadSelected"
                   @download="download"
                   @transcribe="handleTranscribe"
+                  @open-text="openFile"
                   @transcribe-all="handleTranscribeAll"
                   @transcribe-selected="handleTranscribeSelected"
                   @select-folder="selectDownloadFolder"
@@ -380,11 +424,18 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
       v-if="showSettings"
       :has-api-key="hasApiKey"
       :selected-model="selectedGeminiModel"
+      :selected-engine="transcribeEngine"
       :model-options="GEMINI_MODEL_OPTIONS"
+      :key-error="apiKeyError"
+      :is-verifying-key="isVerifyingApiKey"
       @save="handleSaveApiKey"
       @save-model="handleSaveGeminiModel"
+      @save-engine="handleSaveTranscribeEngine"
       @delete="handleDeleteApiKey"
-      @close="showSettings = false"
+      @close="
+        showSettings = false;
+        apiKeyError = '';
+      "
     />
   </div>
 </template>

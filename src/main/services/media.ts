@@ -4,7 +4,7 @@ import { unlink } from 'fs/promises';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
-import { SPLIT_THRESHOLD_BYTES } from '../../shared/config';
+import { SPLIT_THRESHOLD_BYTES, WHISPER_SAMPLE_RATE } from '../../shared/config';
 import { IPC_EVENT } from '../../shared/channels';
 
 // asar 패키징 시 경로 보정
@@ -24,6 +24,29 @@ export function convertToMp3(mp4Path: string, mp3Path: string): Promise<void> {
       .on('end', () => res())
       .on('error', (err) => rej(err))
       .run();
+  });
+}
+
+/** 오디오/비디오 파일을 Whisper 입력용 16kHz 모노 16bit PCM(s16le)으로 디코딩한다. */
+export function decodeToPcm16k(filePath: string): Promise<Int16Array> {
+  return new Promise((res, rej) => {
+    const chunks: Buffer[] = [];
+    const stream = ffmpeg(filePath)
+      .noVideo()
+      .audioChannels(1)
+      .audioFrequency(WHISPER_SAMPLE_RATE)
+      .format('s16le')
+      .on('error', (err) => rej(err))
+      .pipe();
+
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('end', () => {
+      const buf = Buffer.concat(chunks);
+      // Buffer는 풀링된(정렬되지 않은) 메모리일 수 있어 새 ArrayBuffer로 복사 (x64/arm64 모두 리틀엔디언)
+      const byteLength = buf.length - (buf.length % 2);
+      res(new Int16Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + byteLength)));
+    });
+    stream.on('error', (err) => rej(err));
   });
 }
 
