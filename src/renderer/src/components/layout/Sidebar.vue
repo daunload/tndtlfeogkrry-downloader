@@ -1,6 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { Sun, Moon, Book, LogIn, ArrowUpCircle, Settings, Archive } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted } from 'vue';
+import {
+  Sun,
+  Moon,
+  Book,
+  LogIn,
+  ArrowUpCircle,
+  Settings,
+  Archive,
+  Loader2,
+  RotateCw
+} from 'lucide-vue-next';
+import type { UpdateInfo } from '../../../../shared/types';
 import { useTheme } from '../../composables/useTheme';
 
 defineProps<{
@@ -18,21 +29,26 @@ const emit = defineEmits<{
 
 const { isDark, toggleTheme } = useTheme();
 
-const updateInfo = ref<{
-  hasUpdate: boolean;
-  currentVersion: string;
-  latestVersion?: string;
-  downloadUrl?: string;
-} | null>(null);
+const updateInfo = ref<UpdateInfo | null>(null);
 
 onMounted(async () => {
+  window.api.onUpdateStatus((info) => {
+    updateInfo.value = info;
+  });
   try {
-    const result = await window.api.checkForUpdate();
-    updateInfo.value = result;
+    updateInfo.value = await window.api.checkForUpdate();
   } catch {
-    // 업데이트 확인 실패 무시
+    // 업데이트 상태 조회 실패 무시
   }
 });
+
+onUnmounted(() => {
+  window.api.removeUpdateStatus();
+});
+
+function installUpdate(): void {
+  window.api.installUpdate();
+}
 
 function openDownload(): void {
   if (updateInfo.value?.downloadUrl) {
@@ -105,16 +121,44 @@ function openDownload(): void {
     </nav>
 
     <div class="p-4 md:p-6 border-t border-border/50 flex flex-col gap-3">
-      <!-- 업데이트 알림 -->
+      <!-- 업데이트: 백그라운드 다운로드 → 종료 시 설치 -->
+      <div
+        v-if="updateInfo?.status === 'downloading'"
+        class="w-full flex items-center justify-center md:justify-start gap-0 md:gap-2.5 px-0 md:px-4 py-2.5 rounded-xl text-xs font-semibold text-text-3"
+        :title="`v${updateInfo.latestVersion} 업데이트 받는 중`"
+      >
+        <Loader2 :size="16" class="shrink-0 animate-spin" />
+        <span class="hidden md:block whitespace-nowrap truncate"
+          >v{{ updateInfo.latestVersion }} 받는 중 {{ updateInfo.percent ?? 0 }}%</span
+        >
+      </div>
+
+      <div
+        v-else-if="updateInfo?.status === 'ready'"
+        class="w-full flex flex-col gap-2 px-0 md:px-4 py-2.5 rounded-xl bg-success/10 border border-success/20"
+      >
+        <span class="hidden md:block text-xs font-semibold text-success text-center"
+          >v{{ updateInfo.latestVersion }} 준비됨 · 종료 시 설치</span
+        >
+        <button
+          class="flex items-center justify-center gap-0 md:gap-2 text-xs font-bold text-success hover:underline cursor-pointer bg-transparent border-none"
+          title="지금 재시작하여 업데이트"
+          @click="installUpdate"
+        >
+          <RotateCw :size="14" class="shrink-0" />
+          <span class="hidden md:block whitespace-nowrap">지금 재시작</span>
+        </button>
+      </div>
+
       <button
-        v-if="updateInfo?.hasUpdate"
+        v-else-if="updateInfo?.status === 'error' && updateInfo.downloadUrl"
         class="w-full flex items-center justify-center md:justify-start gap-0 md:gap-2.5 px-0 md:px-4 py-2.5 rounded-xl text-sm font-bold bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all cursor-pointer border border-amber-500/30"
         :title="`v${updateInfo.latestVersion} 업데이트 다운로드`"
         @click="openDownload"
       >
-        <ArrowUpCircle :size="18" class="shrink-0 animate-bounce" />
+        <ArrowUpCircle :size="18" class="shrink-0" />
         <span class="hidden md:block whitespace-nowrap truncate"
-          >v{{ updateInfo.latestVersion }} 업데이트</span
+          >v{{ updateInfo.latestVersion }} 수동 업데이트</span
         >
       </button>
 

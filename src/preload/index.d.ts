@@ -11,6 +11,7 @@ import type {
   TranscribeProgressData,
   GeminiModelId,
   TranscribeEngine,
+  UpdateInfo,
   WhisperJobMessage,
   WhisperJobResult,
   DownloadRecord,
@@ -127,12 +128,10 @@ interface DownloadApi {
   }>;
   onTranscribeProgress: (callback: (data: TranscribeProgressData) => void) => void;
   removeTranscribeProgress: () => void;
-  checkForUpdate: () => Promise<{
-    hasUpdate: boolean;
-    currentVersion: string;
-    latestVersion?: string;
-    downloadUrl?: string;
-  }>;
+  checkForUpdate: () => Promise<UpdateInfo>;
+  installUpdate: () => Promise<void>;
+  onUpdateStatus: (callback: (info: UpdateInfo) => void) => void;
+  removeUpdateStatus: () => void;
 
   // History
   getHistory: () => Promise<{ success: boolean; records?: DownloadRecordWithStatus[] }>;

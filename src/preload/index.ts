@@ -13,6 +13,7 @@ import type {
   TranscribeProgressData,
   GeminiModelId,
   TranscribeEngine,
+  UpdateInfo,
   WhisperJobMessage,
   WhisperJobResult,
   DownloadRecord,
@@ -180,12 +181,17 @@ const api = {
     ipcRenderer.removeAllListeners(IPC_EVENT.TRANSCRIBE_PROGRESS);
   },
 
-  checkForUpdate: (): Promise<{
-    hasUpdate: boolean;
-    currentVersion: string;
-    latestVersion?: string;
-    downloadUrl?: string;
-  }> => ipcRenderer.invoke(IPC.CHECK_FOR_UPDATE),
+  checkForUpdate: (): Promise<UpdateInfo> => ipcRenderer.invoke(IPC.CHECK_FOR_UPDATE),
+
+  installUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.INSTALL_UPDATE),
+
+  onUpdateStatus: (callback: (info: UpdateInfo) => void): void => {
+    ipcRenderer.on(IPC_EVENT.UPDATE_STATUS, (_event, info) => callback(info));
+  },
+
+  removeUpdateStatus: (): void => {
+    ipcRenderer.removeAllListeners(IPC_EVENT.UPDATE_STATUS);
+  },
 
   // --- History ---
   getHistory: (): Promise<{ success: boolean; records?: DownloadRecordWithStatus[] }> =>

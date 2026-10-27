@@ -65,6 +65,21 @@ export interface WikiFileHistoryRecordWithStatus extends WikiFileHistoryRecord {
   fileExists: boolean;
   summaryExists: boolean;
 }
+/**
+ * 자동 업데이트 상태 (Main → Renderer)
+ * - none: 최신 버전이거나 확인 전
+ * - downloading: 새 버전을 백그라운드에서 받는 중
+ * - ready: 받기 완료. 앱 종료 시(또는 재시작 버튼) 설치
+ * - error: 자동 업데이트 실패. downloadUrl로 수동 설치 안내
+ */
+export interface UpdateInfo {
+  status: 'none' | 'downloading' | 'ready' | 'error';
+  currentVersion: string;
+  latestVersion?: string;
+  percent?: number;
+  downloadUrl?: string;
+}
+
 /** 다운로드/변환 요청용 최소 참조 (contentId + title만 필요) */
 export interface VideoRef {
   contentId: string;

@@ -21,6 +21,7 @@ export const IPC = {
   SELECT_FOLDER: 'select-folder',
   SELECT_DOWNLOAD_FOLDER: 'select-download-folder',
   CHECK_FOR_UPDATE: 'check-for-update',
+  INSTALL_UPDATE: 'install-update',
   GET_HISTORY: 'get-history',
   ADD_HISTORY: 'add-history',
   UPDATE_HISTORY_TRANSCRIPTION: 'update-history-transcription',
@@ -35,6 +36,8 @@ export const IPC = {
 export const IPC_EVENT = {
   DOWNLOAD_PROGRESS: 'download-progress',
   TRANSCRIBE_PROGRESS: 'transcribe-progress',
+  /** 자동 업데이트 상태 변경 (Main → Renderer) */
+  UPDATE_STATUS: 'update-status',
   /** Whisper 전사 작업 요청 (Main → Renderer) */
   WHISPER_JOB: 'whisper-job',
   /** Whisper 전사 진행률/결과 (Renderer → Main, ipcRenderer.send / ipcMain.on) */

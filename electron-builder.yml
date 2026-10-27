@@ -1,4 +1,4 @@
-appId: com.electron.app
+appId: com.daunload.soongsil-lms-downloader
 productName: soongsil-lms-downloader
 directories:
   buildResources: build
@@ -17,13 +17,18 @@ asarUnpack:
 win:
   executableName: soongsil-lms-downloader
 nsis:
+  # appId 변경 전(com.electron.app) 설치 ID 유지 → 기존 설치를 덮어쓰고 자동 업데이트 이어짐
+  guid: f8941786-352c-5c22-bea5-7886c3ac4a8f
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
-  identity: null
-  notarize: false
+  # 서명/공증은 CI 환경변수로 수행 (CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID)
+  # Squirrel.Mac 자동 업데이트는 서명된 앱에서만 동작
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
@@ -40,3 +45,5 @@ publish:
   provider: github
   owner: daunload
   repo: tndtlfeogkrry-downloader
+  # draft는 electron-updater가 보지 못하므로 바로 게시
+  releaseType: release

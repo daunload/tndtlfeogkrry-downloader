@@ -1,88 +1,61 @@
-import { app, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { IPC } from '../../shared/channels';
+import { IPC, IPC_EVENT } from '../../shared/channels';
 import { GITHUB_REPO } from '../../shared/config';
+import type { UpdateInfo } from '../../shared/types';
+import { destroyLmsWin } from '../window';
 
-export interface UpdateInfo {
-  hasUpdate: boolean;
-  currentVersion: string;
-  latestVersion?: string;
-  downloadUrl?: string;
+let updateInfo: UpdateInfo = { status: 'none', currentVersion: app.getVersion() };
+
+function setUpdateInfo(next: Partial<UpdateInfo>): void {
+  updateInfo = { ...updateInfo, ...next };
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(IPC_EVENT.UPDATE_STATUS, updateInfo);
+  }
 }
 
-let cachedUpdateInfo: UpdateInfo | null = null;
-
+/**
+ * GitHub Release 기반 자동 업데이트.
+ * 새 버전은 백그라운드에서 받아두고 앱 종료 시 설치한다 (대화상자 없음).
+ */
 export function initAutoUpdater(): void {
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('update-available', (info) => {
-    const latestVersion = info.version;
-    const downloadUrl = `https://github.com/${GITHUB_REPO}/releases/latest`;
+    setUpdateInfo({ status: 'downloading', latestVersion: info.version, percent: 0 });
+  });
 
-    cachedUpdateInfo = {
-      hasUpdate: true,
-      currentVersion: app.getVersion(),
-      latestVersion,
-      downloadUrl
-    };
+  autoUpdater.on('download-progress', (progress) => {
+    setUpdateInfo({ status: 'downloading', percent: Math.round(progress.percent) });
+  });
 
-    dialog
-      .showMessageBox({
-        type: 'info',
-        title: '업데이트 발견',
-        message: `새 버전 v${latestVersion}이 있습니다.`,
-        detail:
-          '자동 업데이트가 지원되지 않습니다.\n\nGitHub에서 최신 설치 파일을 다운로드한 후,\n기존 앱을 덮어쓰기 해주세요.',
-        buttons: ['GitHub에서 다운로드', '나중에'],
-        defaultId: 0
-      })
-      .then(({ response }) => {
-        if (response === 0) {
-          shell.openExternal(downloadUrl);
-        }
+  autoUpdater.on('update-downloaded', (info) => {
+    setUpdateInfo({ status: 'ready', latestVersion: info.version, percent: 100 });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('자동 업데이트 실패:', err);
+    // 새 버전을 받다가 실패한 경우에만 수동 설치 안내 (확인 단계 실패는 조용히 무시)
+    if (updateInfo.status === 'downloading') {
+      setUpdateInfo({
+        status: 'error',
+        downloadUrl: `https://github.com/${GITHUB_REPO}/releases/latest`
       });
-  });
-
-  autoUpdater.on('update-not-available', () => {
-    cachedUpdateInfo = {
-      hasUpdate: false,
-      currentVersion: app.getVersion()
-    };
-  });
-
-  autoUpdater.on('error', () => {
-    cachedUpdateInfo = {
-      hasUpdate: false,
-      currentVersion: app.getVersion()
-    };
+    }
   });
 
   autoUpdater.checkForUpdates().catch(() => {});
 }
 
 export function registerUpdateHandlers(): void {
-  ipcMain.handle(IPC.CHECK_FOR_UPDATE, async (): Promise<UpdateInfo> => {
-    if (cachedUpdateInfo) return cachedUpdateInfo;
+  ipcMain.handle(IPC.CHECK_FOR_UPDATE, (): UpdateInfo => updateInfo);
 
-    try {
-      const result = await autoUpdater.checkForUpdates();
-      if (result && result.updateInfo) {
-        const current = app.getVersion();
-        const latest = result.updateInfo.version;
-        if (latest !== current) {
-          return {
-            hasUpdate: true,
-            currentVersion: current,
-            latestVersion: latest,
-            downloadUrl: `https://github.com/${GITHUB_REPO}/releases/latest`
-          };
-        }
-      }
-    } catch {
-      // 업데이트 확인 실패 시 현재 버전 정보만 반환
-    }
-
-    return { hasUpdate: false, currentVersion: app.getVersion() };
+  ipcMain.handle(IPC.INSTALL_UPDATE, () => {
+    if (updateInfo.status !== 'ready') return;
+    // LMS 창은 close 시 hide만 하므로 먼저 파괴해야 mac의 quitAndInstall이 막히지 않음
+    destroyLmsWin();
+    // Windows: 설치 창 없이 설치 후 바로 재실행
+    autoUpdater.quitAndInstall(true, true);
   });
 }

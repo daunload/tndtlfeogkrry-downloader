@@ -37,12 +37,34 @@ jobs:
       - name: Test transcription recovery
         run: node --test tests/whisper.test.cjs
 
+      - name: Check macOS signing secrets
+        if: matrix.os == 'macos-latest'
+        run: |
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing secret $name (서명되지 않은 mac 빌드는 자동 업데이트 불가)"
+              exit 1
+            fi
+          done
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
       - name: Build and Publish (macOS)
         if: matrix.os == 'macos-latest'
         run: pnpm build && pnpm exec electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        timeout-minutes: 10
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        # 공증(notarization) 대기 시간 포함
+        timeout-minutes: 40
 
       - name: Build and Publish (Windows)
         if: matrix.os == 'windows-latest'
