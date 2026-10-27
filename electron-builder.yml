@@ -45,5 +45,5 @@ publish:
   provider: github
   owner: daunload
   repo: tndtlfeogkrry-downloader
-  # draft는 electron-updater가 보지 못하므로 바로 게시
-  releaseType: release
+  # draft로 업로드 → 모든 플랫폼 빌드 성공 시 CI의 publish 잡이 게시 (draft는 electron-updater가 보지 못함)
+  releaseType: draft
