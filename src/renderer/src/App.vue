@@ -84,8 +84,14 @@ const {
   loadWikiFileHistory,
   downloadWikiFile,
   summarizeWikiFile,
+  isDownloadingAllWikiFiles,
+  downloadAllWikiFiles,
   wikiMessage
 } = useWikiFiles();
+
+const wikiFileCount = computed(() =>
+  wikiPages.value.reduce((sum, page) => sum + page.files.length, 0)
+);
 
 /** Whisper는 API 키 없이 변환 가능. 요약은 Gemini 키가 있을 때만 */
 const canTranscribe = computed(() => transcribeEngine.value === 'whisper' || hasApiKey.value);
@@ -291,6 +297,16 @@ async function handleDownloadWikiFile(file: WikiPageFileItem): Promise<void> {
   await downloadWikiFile(file, downloadFolder.value ?? undefined);
 }
 
+async function handleDownloadAllWikiFiles(): Promise<void> {
+  // 파일마다 저장 위치를 묻지 않도록 폴더가 없으면 먼저 한 번 선택
+  if (!downloadFolder.value) await selectDownloadFolder();
+  if (!downloadFolder.value) return;
+  await downloadAllWikiFiles(
+    wikiPages.value.flatMap((page) => page.files),
+    downloadFolder.value
+  );
+}
+
 async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
   await summarizeWikiFile(file);
 }
@@ -352,7 +368,7 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
                     "
                     @click="contentTab = 'wiki'"
                   >
-                    수업자료 ({{ wikiPages.length }})
+                    수업자료 ({{ wikiFileCount }})
                   </button>
                 </div>
 
@@ -401,9 +417,11 @@ async function handleSummarizeWikiFile(file: WikiPageFileItem): Promise<void> {
                   :summarized-file-urls="summarizedWikiFileUrls"
                   :summarizing-file-urls="summarizingWikiFileUrls"
                   :has-api-key="hasApiKey"
+                  :is-downloading-all="isDownloadingAllWikiFiles"
                   @back="handleBackToCourses"
                   @select-folder="selectDownloadFolder"
                   @clear-folder="clearDownloadFolder"
+                  @download-all="handleDownloadAllWikiFiles"
                   @download-file="handleDownloadWikiFile"
                   @summarize-file="handleSummarizeWikiFile"
                 />

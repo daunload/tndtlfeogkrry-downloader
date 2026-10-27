@@ -166,6 +166,26 @@ export function registerCoursesHandlers(): void {
             continue;
           }
 
+          // commons 파일 콘텐츠(pptx/pdf/zip 등): 모듈 아이템 1개 = 첨부파일 1개
+          if (itemType === 'file') {
+            const data = item.content_data?.item_content_data;
+            if (!data?.content_id) continue;
+            wikiPages.push({
+              title: item.title,
+              courseId,
+              weekPosition: item.content_data.week_position || 0,
+              available: true,
+              url: `https://canvas.ssu.ac.kr/courses/${courseId}/modules/items/${item.module_item_id}`,
+              files: [
+                {
+                  title: data.file_name || item.title,
+                  downloadUrl: `https://commons.ssu.ac.kr/index.php?module=xn_media_content2013&act=dispXn_media_content2013DownloadContent&content_id=${data.content_id}`
+                }
+              ]
+            });
+            continue;
+          }
+
           // wiki_page는 slug(content_data.url) 기반 페이지를 열어 embedded content_id를 추출
           if (itemType === 'wiki_page' && item.content_data?.url) {
             const pageUrl = `https://canvas.ssu.ac.kr/courses/${courseId}/pages/${item.content_data.url}?module_item_id=${item.module_item_id}`;
@@ -196,6 +216,8 @@ export function registerCoursesHandlers(): void {
           }
         }
       }
+
+      wikiPages.sort((a, b) => a.weekPosition - b.weekPosition);
 
       return { success: true, videos, wikiPages };
     } catch (err) {

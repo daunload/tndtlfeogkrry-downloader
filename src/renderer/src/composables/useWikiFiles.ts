@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue';
+import { MAX_CONCURRENT_DOWNLOADS } from '../../../shared/config';
 import type { WikiPageFileItem } from '../types';
 
 interface UseWikiFilesReturn {
@@ -6,8 +7,10 @@ interface UseWikiFilesReturn {
   downloadedWikiFileUrls: Ref<Set<string>>;
   summarizedWikiFileUrls: Ref<Set<string>>;
   summarizingWikiFileUrls: Ref<Set<string>>;
+  isDownloadingAllWikiFiles: Ref<boolean>;
   loadWikiFileHistory: () => Promise<void>;
   downloadWikiFile: (file: WikiPageFileItem, folderPath?: string) => Promise<void>;
+  downloadAllWikiFiles: (files: WikiPageFileItem[], folderPath: string) => Promise<void>;
   summarizeWikiFile: (file: WikiPageFileItem) => Promise<void>;
   wikiMessage: Ref<string>;
 }
@@ -16,6 +19,7 @@ const downloadingWikiFileUrls = ref<Set<string>>(new Set());
 const downloadedWikiFileUrls = ref<Set<string>>(new Set());
 const summarizedWikiFileUrls = ref<Set<string>>(new Set());
 const summarizingWikiFileUrls = ref<Set<string>>(new Set());
+const isDownloadingAllWikiFiles = ref(false);
 const wikiDownloadedPaths = ref<Record<string, string>>({});
 const wikiMessage = ref('');
 
@@ -76,6 +80,38 @@ export function useWikiFiles(): UseWikiFilesReturn {
     }
   }
 
+  /** 아직 받지 않은 수업자료만 최대 MAX_CONCURRENT_DOWNLOADS개씩 병렬 다운로드 */
+  async function downloadAllWikiFiles(
+    files: WikiPageFileItem[],
+    folderPath: string
+  ): Promise<void> {
+    const queue = files.filter(
+      (f) =>
+        !downloadedWikiFileUrls.value.has(f.downloadUrl) &&
+        !downloadingWikiFileUrls.value.has(f.downloadUrl)
+    );
+    if (queue.length === 0) {
+      pushWikiMessage('모든 수업자료를 이미 다운로드했습니다.');
+      return;
+    }
+
+    isDownloadingAllWikiFiles.value = true;
+    async function worker(): Promise<void> {
+      while (queue.length > 0) {
+        const file = queue.shift();
+        if (file) await downloadWikiFile(file, folderPath);
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_CONCURRENT_DOWNLOADS, queue.length) }, () => worker())
+    );
+
+    isDownloadingAllWikiFiles.value = false;
+    const succeeded = files.filter((f) => downloadedWikiFileUrls.value.has(f.downloadUrl)).length;
+    pushWikiMessage(`수업자료 일괄 다운로드 완료 (${succeeded}/${files.length})`);
+  }
+
   async function summarizeWikiFile(file: WikiPageFileItem): Promise<void> {
     const filePath = wikiDownloadedPaths.value[file.downloadUrl];
     if (!filePath) {
@@ -109,8 +145,10 @@ export function useWikiFiles(): UseWikiFilesReturn {
     downloadedWikiFileUrls,
     summarizedWikiFileUrls,
     summarizingWikiFileUrls,
+    isDownloadingAllWikiFiles,
     loadWikiFileHistory,
     downloadWikiFile,
+    downloadAllWikiFiles,
     summarizeWikiFile,
     wikiMessage
   };
